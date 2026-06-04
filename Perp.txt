@@ -1,0 +1,17 @@
+v1
+1. In memory, leverage, single system, liquidations
+
+v2
+1. Funding rate
+2. architecture
+3. cross margin vs isolated margin
+4. insurance funds and adl
+5. trading fee
+6. better in memory data structure
+
+v3
+1. Multithreaded orderbooks
+
+
+there is no cron job or anything that runs which checks liquidation price and bankruptcy price.
+external people run bots to do that and make money from that
