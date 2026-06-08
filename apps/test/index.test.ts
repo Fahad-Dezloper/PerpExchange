@@ -7,6 +7,7 @@ import axios, { AxiosError } from "axios";
 import { password } from "bun";
 
 describe("auth endpoints", () => {
+  const username = `fahad + ${Math.random()}`;
   it("Signup doesn't work if username isn't provided", async () => {
     try {
       const response = await axios.post(`${BACKEND}/api/v1/signup`, {
@@ -25,7 +26,7 @@ describe("auth endpoints", () => {
 
   it("Singup does work if username isn't provided", async () => {
     const response = await axios.post(`${BACKEND}/api/v1/signup`, {
-      username: "Fahad",
+      username,
       password: "123123",
     });
     expect(response.data.id).not.toBe(undefined);
