@@ -4,7 +4,6 @@
 import { describe, expect, it } from "bun:test";
 import { BACKEND } from "./config";
 import axios, { AxiosError } from "axios";
-import { password } from "bun";
 
 describe("auth endpoints", () => {
   const username = `fahad + ${Math.random()}`;
