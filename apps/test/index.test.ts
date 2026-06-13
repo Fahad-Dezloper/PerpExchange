@@ -13,12 +13,12 @@ describe("auth endpoints", () => {
         password: "123123",
       });
 
-      expect(1).toBe(2);
+      expect().fail();
     } catch (e) {
       if (e instanceof AxiosError) {
         expect(e.response?.status).toBe(411);
       } else {
-        expect(1).toBe(2);
+        expect().fail();
       }
     }
   });

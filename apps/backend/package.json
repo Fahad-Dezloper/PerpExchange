@@ -11,11 +11,15 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "db": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "db": "workspace:*",
+    "commons": "workspace:*",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
-    "prisma": "^7.8.0"
+    "prisma": "^7.8.0",
+    "redis": "^6.0.0"
   }
 }

@@ -2,7 +2,7 @@ export type ToEngine =
   | {
       messageType: "onramp";
       userId: string;
-      amount: number;
+      amount: string;
     }
   | {
       messageType: "create_order";
