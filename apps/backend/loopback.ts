@@ -1,56 +1,12 @@
+/// send data to the queue which goes to the engine and return it back via pubsub
 import type { ToEngine } from "commons";
 import { createClient } from "redis";
 
 const client = createClient();
 client.connect();
 
-const subscriber = createClient();
-subscriber.connect();
+const BACKEND_CONSUMER_GROUP = "backend-workers";
 
-const BACKEND_CONSUMER_GROUP = "backend-" + Math.random();
-
-client.xGroupCreate("to-backend", BACKEND_CONSUMER_GROUP, "$", {
+client.xGroupCreate("to-engine", BACKEND_CONSUMER_GROUP, "$", {
   MKSTREAM: true,
 });
-
-const loopBackResolves = new Map<string, () => {}>();
-
-export function loopback(message: ToEngine) {
-  return new Promise(async (resolve, reject) => {
-    const loopBackId = Math.random().toString();
-    await client.xAdd("engine", "*", { loopBackId, ...message });
-    loopBackResolves.set(loopBackId, resolve);
-    setTimeout(() => {
-      if (loopBackResolves.get(message.loopBackId)) {
-        reject();
-        loopBackResolves.delete(message.loopBackId);
-      }
-    }, 10000);
-  });
-}
-
-async function main() {
-  while (1) {
-    const response = await subscriber.xReadGroup(
-      BACKEND_CONSUMER_GROUP,
-      BACKEND_CONSUMER_GROUP,
-      [
-        {
-          key: "to-backend",
-          id: ">",
-        },
-      ],
-      {
-        BLOCK: 0,
-        COUNT: 1,
-      },
-    );
-
-    const message: {
-      loopBackId: string;
-    } & ToEngine = response[0]?.messages[0]?.message;
-
-    loopBackResolves.get(message.loopBackId)?.();
-    loopBackResolves.delete(message.loopBackId);
-  }
-}

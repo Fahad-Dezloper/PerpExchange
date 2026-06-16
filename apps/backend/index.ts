@@ -94,7 +94,7 @@ app.post("/api/v1/market", async (req, res) => {
 app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
   const userId = req.userId!;
 
-  // publish and wait for the other queue to return the response
+  // publish and wait for the pubsub to return the response
   const queueLoopbackResponse = await loopback({
     messageType: "onramp",
     userId: userId,
