@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1100" viewBox="0 0 1700 1100" font-family="'Chalkboard SE','Comic Sans MS','Comic Neue',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="8.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8.5,3 L0,6 Z" fill="#eaeaea"/>
+    </marker>
+    <marker id="arrowStart" markerWidth="12" markerHeight="12" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M8.5,0 L0,3 L8.5,6 Z" fill="#eaeaea"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1700" height="1100" fill="#0d1014"/>
+
+  <!-- title -->
+  <text x="60" y="58" fill="#f3f3f3" font-size="34" font-weight="bold">PerpExchange — Architecture</text>
+  <text x="60" y="88" fill="#8b929c" font-size="17">single source of truth = Engine · recovery = snapshot + replayable log · one ordered input</text>
+
+  <!-- ============ EDGES (drawn first, under boxes) ============ -->
+  <g stroke="#eaeaea" stroke-width="3.5" fill="none">
+    <!-- clients <-> backend -->
+    <line x1="270" y1="398" x2="378" y2="468" marker-end="url(#arrow)" marker-start="url(#arrowStart)"/>
+    <line x1="270" y1="600" x2="378" y2="522" marker-end="url(#arrow)"/>
+
+    <!-- backend -> log -->
+    <line x1="592" y1="500" x2="686" y2="522" marker-end="url(#arrow)"/>
+
+    <!-- price/funding -> log -->
+    <line x1="560" y1="855" x2="788" y2="612" marker-end="url(#arrow)"/>
+    <line x1="582" y1="998" x2="812" y2="614" marker-end="url(#arrow)"/>
+    <!-- oracle -> mark price poller (dashed) -->
+    <line x1="272" y1="892" x2="348" y2="890" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+
+    <!-- log -> engine -->
+    <line x1="942" y1="535" x2="1236" y2="525" marker-end="url(#arrow)" stroke-width="3"/>
+    <!-- log -> standby (dashed lockstep) -->
+    <line x1="940" y1="595" x2="1236" y2="710" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+
+    <!-- engine <-> standby failover -->
+    <line x1="1372" y1="612" x2="1372" y2="676" marker-end="url(#arrow)" marker-start="url(#arrowStart)"/>
+
+    <!-- engine -> snapshots (write)  /  snapshots -> engine (restore dashed) -->
+    <line x1="1345" y1="448" x2="1345" y2="208" marker-end="url(#arrow)"/>
+    <line x1="1400" y1="208" x2="1400" y2="448" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+
+    <!-- engine -> event stream -> poller -> db -->
+    <line x1="1298" y1="452" x2="1150" y2="384" marker-end="url(#arrow)"/>
+    <line x1="972" y1="332" x2="898" y2="325" marker-end="url(#arrow)"/>
+    <line x1="806" y1="268" x2="812" y2="184" marker-end="url(#arrow)"/>
+
+    <!-- engine -> pubsub -> backend -->
+    <line x1="1238" y1="585" x2="922" y2="712" marker-end="url(#arrow)"/>
+    <line x1="688" y1="708" x2="558" y2="552" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- ============ EDGE LABELS ============ -->
+  <g fill="#8b929c" font-size="15">
+    <text x="600" y="486">orders / deposits / withdrawals</text>
+    <text x="612" y="742">mark price</text>
+    <text x="640" y="900">funding ticks</text>
+    <text x="270" y="878">price feed</text>
+    <text x="1010" y="500">ordered &amp; replayable (seq-id)</text>
+    <text x="1010" y="660">lockstep</text>
+    <text x="1382" y="650">failover</text>
+    <text x="1232" y="330" transform="rotate(-90 1232 330)">snapshot</text>
+    <text x="1452" y="330" transform="rotate(90 1452 330)">restore + replay</text>
+    <text x="1140" y="408">fills / trades</text>
+    <text x="905" y="305">persist</text>
+    <text x="1015" y="690">events / ack(request-id)</text>
+    <text x="600" y="620">live updates</text>
+  </g>
+
+  <!-- ============ NODES ============ -->
+  <g stroke="#e8e8e8" stroke-width="2.5">
+    <!-- clients -->
+    <rect x="70" y="320" width="200" height="110" rx="20" fill="#161b22"/>
+    <rect x="70" y="560" width="200" height="110" rx="20" fill="#161b22"/>
+    <!-- backend -->
+    <rect x="378" y="430" width="214" height="120" rx="20" fill="#161b22"/>
+    <!-- oracle / pollers -->
+    <rect x="62" y="848" width="210" height="96" rx="20" fill="#161b22"/>
+    <rect x="348" y="840" width="232" height="100" rx="20" fill="#161b22"/>
+    <rect x="348" y="975" width="232" height="80" rx="20" fill="#161b22"/>
+    <!-- command log (highlighted) -->
+    <rect x="686" y="460" width="256" height="150" rx="18" fill="#1f2733" stroke="#ffffff" stroke-width="3.5"/>
+    <!-- db / poller / event stream / pubsub -->
+    <rect x="700" y="60" width="230" height="124" rx="20" fill="#161b22"/>
+    <rect x="715" y="268" width="184" height="102" rx="20" fill="#161b22"/>
+    <rect x="972" y="285" width="204" height="98" rx="16" fill="#161b22"/>
+    <rect x="686" y="680" width="236" height="100" rx="16" fill="#161b22"/>
+    <!-- engine + standby -->
+    <rect x="1238" y="448" width="268" height="164" rx="22" fill="#161b22" stroke-width="3"/>
+    <rect x="1238" y="676" width="268" height="124" rx="22" fill="#12161c" stroke-dasharray="9 7"/>
+    <!-- snapshots -->
+    <rect x="1180" y="56" width="360" height="150" rx="20" fill="#12161c" stroke-dasharray="9 7"/>
+  </g>
+
+  <!-- ============ NODE TEXT ============ -->
+  <g fill="#f2f2f2" text-anchor="middle">
+    <text x="170" y="382" font-size="22">Website</text>
+    <text x="170" y="622" font-size="22">Mobile App</text>
+
+    <text x="485" y="482" font-size="22">Backend API</text>
+    <text x="485" y="510" font-size="14" fill="#9aa0a6">stateless</text>
+
+    <text x="167" y="890" font-size="19">Binance / Oracle</text>
+    <text x="167" y="913" font-size="13" fill="#9aa0a6">multi-source</text>
+
+    <text x="464" y="882" font-size="19">Mark Price Poller</text>
+    <text x="464" y="905" font-size="13" fill="#9aa0a6">median + staleness halt</text>
+
+    <text x="464" y="1010" font-size="18">Funding Ticker</text>
+    <text x="464" y="1031" font-size="13" fill="#9aa0a6">scheduled messages</text>
+
+    <text x="814" y="512" font-size="22" font-weight="bold">Command Log</text>
+    <text x="814" y="538" font-size="13" fill="#c3c8cf">durable · ordered</text>
+    <text x="814" y="558" font-size="13" fill="#c3c8cf">replayable · seq-id</text>
+    <text x="814" y="582" font-size="12" fill="#9aa0a6">Kafka / Redis Streams</text>
+
+    <text x="815" y="116" font-size="22">Database</text>
+    <text x="815" y="142" font-size="13" fill="#9aa0a6">history · projections</text>
+    <text x="815" y="162" font-size="12" fill="#7d838c">never read for trading</text>
+
+    <text x="807" y="316" font-size="20">Poller</text>
+    <text x="807" y="338" font-size="13" fill="#9aa0a6">consumer</text>
+
+    <text x="1074" y="328" font-size="18">Event Stream</text>
+    <text x="1074" y="350" font-size="13" fill="#9aa0a6">fills · trades · funding</text>
+
+    <text x="804" y="724" font-size="20">PUB / SUB</text>
+    <text x="804" y="746" font-size="13" fill="#9aa0a6">+ request-id correlation</text>
+
+    <text x="1372" y="508" font-size="24" font-weight="bold">Engine</text>
+    <text x="1372" y="534" font-size="13" fill="#c3c8cf">in-memory: orderbooks ·</text>
+    <text x="1372" y="553" font-size="13" fill="#c3c8cf">balances · positions</text>
+    <text x="1372" y="578" font-size="13" fill="#9aa0a6">per-market shards (1 thread/book)</text>
+
+    <text x="1372" y="726" font-size="19">Standby Engine</text>
+    <text x="1372" y="748" font-size="13" fill="#9aa0a6">hot · same log</text>
+
+    <text x="1360" y="98" font-size="20">Snapshots → Object Storage / S3</text>
+    <text x="1360" y="132" font-size="14" fill="#c3c8cf">orderbook_2026_03_19_09:15  + seq-id</text>
+    <text x="1360" y="158" font-size="14" fill="#c3c8cf">orderbook_2026_03_19_09:30  + seq-id</text>
+    <text x="1360" y="186" font-size="12" fill="#7d838c">non-blocking write</text>
+  </g>
+</svg>
