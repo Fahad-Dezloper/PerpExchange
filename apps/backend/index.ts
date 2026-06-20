@@ -73,17 +73,21 @@ app.post("/api/v1/market", async (req, res) => {
     return;
   }
 
-  const response = await prisma.market.create({
-    data: {
-      slug: symbol,
-      imageUrl,
-    },
-  });
+  // const response = await prisma.market.create({
+  //   data: {
+  //     slug: symbol,
+  //     imageUrl,
+  //   },
+  // });
+
+  const response = { id: 123212 };
+
+  console.log("reached here");
 
   // publish and wait for the other queue to return the response
-  const queueLoopbackResponse = await loopback({
+  const LoopbackResponse = await loopback({
     messageType: "create_market",
-    marketId: response.id,
+    marketId: response.id.toString(),
   });
 
   res.json({

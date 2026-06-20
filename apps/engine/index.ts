@@ -1,161 +1,57 @@
 import { createClient } from "redis";
 import type { ToEngine } from "commons";
 
-// pushing to the engine queue from backend
-const client = createClient();
-client.connect();
+// consume data from redis
+const consumer = createClient();
 
-// engine pushing to the queue from where backend is picking up
+// send data via pubsub
 const publisher = createClient();
-publisher.connect();
 
-type OpenOrder = {
-  userId: string;
-  originlaOrderId: string;
-  qty: string;
-  filledQty: string;
-};
+const GROUP = "engine";
+const CONSUMER = "engine-1";
+const REPLY_CHANNEL = "engine-replies";
 
-type Bid = {
-  availableQty: number;
-  openOrders: OpenOrder[];
-};
+async function main() {
+  await consumer.connect();
+  await publisher.connect();
 
-type Ask = {
-  availableQty: number;
-  openOrders: OpenOrder[];
-};
+  try {
+    await consumer.xGroupCreate("to-engine", GROUP, "0", { MKSTREAM: true });
+  } catch (e: any) {
+    if (!String(e?.message).includes("BUSYGROUPS")) throw e;
+  }
 
-interface Orderbook {
-  bids: Map<string, Bid>;
-  asks: Map<string, Ask>;
-  marketId: string;
-  lastTradedPrice: number;
-}
-
-const orderbooks: Orderbook[] = [];
-const balances: Map<string, { available: string; locked: string }> = new Map();
-const positions: Map<
-  string,
-  Map<
-    string,
-    {
-      side: "long" | "short";
-      averagePrice: number;
-      qty: string;
-      liquidationPrice: string;
-      stopLoss: string;
-      takeProfit: string;
-      equity: string;
-    }
-  >
-> = new Map();
-
-async function matching() {
-  while (1) {
-    const response = await client.xReadGroup(
-      "engine",
-      "engine",
-      [
-        {
-          key: "engine",
-          id: ">",
-        },
-      ],
-      {
-        BLOCK: 100,
-        COUNT: 1,
-      },
+  while (true) {
+    const res = await consumer.xReadGroup(
+      GROUP,
+      CONSUMER,
+      [{ key: "to-engine", id: ">" }],
+      { BLOCK: 0, COUNT: 1 },
     );
+    if (!res) continue;
 
-    if (!response) {
-      continue;
-    }
+    for (const stream of res) {
+      for (const entry of stream.messages) {
+        const { requestId, payload } = entry.message;
+        const message = JSON.parse(payload) as ToEngine;
 
-    const message: {
-      loopBackId: string;
-    } & ToEngine = response[0]!.messages[0].message;
+        // do something — just log for now
+        console.log("received:", requestId, message);
 
-    if (message.messageType == "create_market") {
-      orderbooks.push({
-        bids: new Map(),
-        asks: new Map(),
-        lastTradedPrice: -1,
-        marketId: message.marketId,
-      });
+        // send back via pubsub
+        await publisher.publish(
+          REPLY_CHANNEL,
+          JSON.stringify({
+            requestId,
+            payload: { ok: true, messageType: message.messageType },
+          }),
+        );
 
-      await publisher.xAdd("to-backend", "*", {
-        loopBackId: message.loopBackId,
-      });
-    }
-
-    if (message.messageType === "onramp") {
-      balances.get(message.userId)!.available += message.amount;
-      await publisher.xAdd("to-backend", "*", {
-        loopBackId: message.loopBackId,
-      });
-    }
-
-    if (message.messageType === "create_order") {
-      // create a new order, match if possible
-    }
-
-    if (message.messageType === "cancel_order") {
-      //  cancel an open order
-    }
-
-    if (message.messageType === "get_depth") {
-      //  get the depth for a market
-    }
-
-    if (message.messageType === "spot_price_update") {
-      // do liquidation checks, stop loss and take profit
-    }
-
-    if (message.messageType === "get_funding_rate") {
-      // get the funding rate based on the diff b/w mark price and last traded price
+        // ack so it isn't redelivered
+        await consumer.xAck("to-engine", GROUP, entry.id);
+      }
     }
   }
 }
 
-function fundingRateDespersal() {
-  // check the mark price, calculate how far it is from the last traded price
-  // longs pay shortts or vice versa
-  // liquidation price changes for all positions
-  positions.forEach((userPositions, userId) => {
-    userPositions.forEach((position, marketId) => {
-      const orderbook = orderbooks.get(marketId);
-      if (!orderbook) return;
-
-      const inflationRate =
-        (Number(orderbook.lastTradedPrice) - Number(orderbook.markPrice)) /
-        Number(orderbook.markPrice);
-
-      if (position.side === "long") {
-        const notionalValue =
-          Number(position.qty) * Number(orderbook.lastTradedPrice);
-        position.equity = (
-          Number(position.equity) -
-          notionalValue * inflationRate
-        ).toString();
-        // recalculate liquidation price
-      } else {
-        const notionalValue =
-          Number(position.qty) * Number(orderbook.lastTradedPrice);
-        position.equity += (
-          Number(position.equity) +
-          notionalValue * inflationRate
-        ).toString();
-        // recalculate liquidation price
-      }
-    });
-  });
-}
-
-matching();
-setInterval(
-  () => {
-    fundingRateDespersal();
-  },
-  8 * 60 * 60 * 1000,
-);
+main();
