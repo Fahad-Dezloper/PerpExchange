@@ -56,7 +56,7 @@ app.post("/api/v1/signin", async (req, res) => {
   res.status(200).json({
     token: Jwt.sign(
       {
-        id: user.id,
+        userId: user.id,
       },
       process.env.JWT_SECRET!,
     ),
@@ -102,8 +102,30 @@ app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
   const queueLoopbackResponse = await loopback({
     messageType: "onramp",
     userId: userId,
-    amount: req.body.amount.toString(),
+    amount: req.body.amount,
   });
+
+  console.log(queueLoopbackResponse);
+
+  /// create unread notification add it there.
+  // update it in frontend either directly via pubsub or push from backend
+  res.status(200).json({
+    message: "Good boy",
+  });
+});
+
+app.get("/api/v1/balance", authMiddleware, async (req, res) => {
+  const userId = req.userId!;
+
+  try {
+    const result = await loopback({
+      messageType: "balance",
+      userId,
+    });
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(504).json({ message: "Engine timeout" });
+  }
 });
 
 app.post("api/v1/order", authMiddleware, (req, res) => {

@@ -38,6 +38,24 @@ async function main() {
         // do something — just log for now
         console.log("received:", requestId, message);
 
+        switch (message.messageType) {
+          case "create_market":
+            console.log("create market called", message);
+            break;
+
+          case "onramp":
+            console.log("On ramp money brother", message);
+            break;
+
+          case "balance":
+            console.log("return the users balance", message);
+            break;
+
+          default:
+            console.log("not correct message type");
+            break;
+        }
+
         // send back via pubsub
         await publisher.publish(
           REPLY_CHANNEL,

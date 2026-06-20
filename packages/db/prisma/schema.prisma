@@ -16,6 +16,7 @@ model User {
   id          String  @id @default(uuid())
   username    String
   password    String
+  balance     Int
   orders      Order[]
   maker_fills Fill[]  @relation("maker")
   taker_fills Fill[]  @relation("taker")

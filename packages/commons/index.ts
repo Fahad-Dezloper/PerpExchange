@@ -23,6 +23,10 @@ export type ToEngine =
   | {
       messageType: "create_market";
       marketId: string;
+    }
+  | {
+      messageType: "balance";
+      userId: string;
     };
 
 // order types
