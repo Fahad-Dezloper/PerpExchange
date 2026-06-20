@@ -34,6 +34,10 @@ export type ToEngine =
       messageType: "withdraw";
       amount: string;
       userId: string;
+    }
+  | {
+      messageType: "get_depth";
+      marketId: string;
     };
 
 // order types

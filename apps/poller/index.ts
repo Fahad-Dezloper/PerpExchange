@@ -72,7 +72,7 @@ async function handle(event: EngineEvent) {
 
 async function main() {
   await consumer.connect();
-  //   await ensureGroup();
+  await ensureGroup();
 
   while (true) {
     const res = await consumer.xReadGroup(

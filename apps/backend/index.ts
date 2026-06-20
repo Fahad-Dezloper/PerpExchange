@@ -104,7 +104,7 @@ app.get("/api/v1/balance", authMiddleware, async (req, res) => {
 
 app.post("/api/v1/withdraw", authMiddleware, async (req, res) => {
   const userId = req.userId!;
-  const { amount } = req.body();
+  const { amount } = req.body;
 
   try {
     const result = await loopback({
@@ -194,6 +194,45 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
     res.status(200).json({ orderId: orderId, ...result });
   } catch (e) {
     res.status(504).json({ message: "Engine Timeout" });
+  }
+});
+
+app.post("/api/v1/order/cancel", authMiddleware, async (req, res) => {
+  const userId = req.userId!;
+  const { orderId } = req.body;
+
+  if (!orderId) {
+    return res.status(411).json({ message: "Missing orderId" });
+  }
+
+  try {
+    const result = await loopback({
+      messageType: "cancel_order",
+      orderId,
+      userId,
+    });
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(504).json({ message: "Engine timeout" });
+  }
+});
+
+app.post("/api/v1/depth", async (req, res) => {
+  const marketId = req.query.marketId as string;
+
+  if (!marketId) {
+    return res.status(411).json({ message: "Missing Market ID" });
+  }
+
+  try {
+    const result = await loopback({
+      messageType: "get_depth",
+      marketId,
+    });
+    // { bids: [...], asks: [...] }
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(504).json({ message: "Engine timeout" });
   }
 });
 
