@@ -57,6 +57,7 @@ async function main() {
 
           case "create_order":
             console.log("create order - create order in the market", message);
+            // do something and then send it poller service to store it in the database
             break;
 
           default:

@@ -60,3 +60,33 @@ export interface Orderbook {
   marketId: string;
   lastTradedPrice: number;
 }
+
+export type EngineEvent =
+  | {
+      type: "order_created";
+      orderId: string;
+      userId: string;
+      marketId: string;
+      side: "Bid" | "Ask";
+      orderType: "Limit" | "Market";
+      price: string | null;
+      qty: string;
+      status: "Open" | "Filled" | "PartiallyFilled" | "Cancelled";
+    }
+  | {
+      type: "order_update";
+      orderId: string;
+      filledQty: string;
+      status: "Open" | "Filled" | "PartiallyFilled" | "Cancelled";
+    }
+  | {
+      type: "fill";
+      fillId: string;
+      marketId: string;
+      price: string;
+      qty: string;
+      makerOrderId: string;
+      takerOrderId: string;
+      makerId: string;
+      takerId: string;
+    };

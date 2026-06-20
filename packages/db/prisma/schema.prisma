@@ -13,23 +13,35 @@ datasource db {
 }
 
 model User {
-  id          String  @id @default(uuid())
+  id          String     @id @default(uuid())
   username    String
   password    String
-  balance     Int
   orders      Order[]
-  maker_fills Fill[]  @relation("maker")
-  taker_fills Fill[]  @relation("taker")
+  maker_fills Fill[]     @relation("maker")
+  taker_fills Fill[]     @relation("taker")
+  balance     Balance?
+  positions   Position[]
 }
 
 model Market {
-  id       String @id @default(uuid())
-  slug     String
-  imageUrl String
+  id                String @id @default(uuid())
+  slug              String
+  imageUrl          String
+  maxLeverage       Int    @default(10)
+  maintenanceMargin String @default("0.005")
+  tickSize          String @default("0.1")
+}
+
+model Balance {
+  id        String @id @default(uuid())
+  userId    String @unique
+  available String @default("0")
+  locked    String @default("0")
+  user      User   @relation(fields: [userId], references: [id])
 }
 
 model Order {
-  id            String      @id @default(uuid())
+  id            String      @id
   userId        String
   market_id     String
   orderType     orderType
@@ -59,6 +71,11 @@ enum Side {
   Ask
 }
 
+enum PositionSide {
+  Long
+  Short
+}
+
 enum orderType {
   Market
   Limit
@@ -78,4 +95,28 @@ model Fill {
   maker_order    Order    @relation("maker", fields: [maker_order_id], references: [id])
   maker_user     User     @relation("maker", fields: [maker_id], references: [id])
   taker_user     User     @relation("taker", fields: [taker_id], references: [id])
+}
+
+model Position {
+  id               String         @id @default(uuid())
+  userId           String
+  market_id        String
+  side             PositionSide
+  qty              String
+  avgEntryPrice    String
+  margin           String
+  leverage         Int
+  liquidationPrice String
+  status           PositionStatus @default(Open)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  user             User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, market_id])
+}
+
+enum PositionStatus {
+  Open
+  Closed
+  Liquidated
 }

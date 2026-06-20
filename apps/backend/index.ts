@@ -2,10 +2,8 @@ import express from "express";
 import { prisma } from "db";
 import Jwt from "jsonwebtoken";
 import { authMiddleware } from "./middleware";
-import { createClient } from "redis";
 import { loopback } from "./loopback";
-
-const client = createClient();
+import { ulid } from "ulid";
 
 const app = express();
 app.use(express.json());
@@ -175,26 +173,14 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
   const initialMargin = (notional / Number(leverage || 1)).toString();
 
   // first db save and get orderID
-  const order = await prisma.order.create({
-    data: {
-      userId,
-      market_id: marketId,
-      orderType: type === "limit" ? "Limit" : "Market",
-      side: side === "long" ? "Bid" : "Ask",
-      price: price,
-      slippage: Number(slippage ?? 0),
-      qty: qty.toString(),
-      initialMargin,
-      filledQty: "0",
-      status: "Open",
-    },
-  });
+  const orderId = `ODR-${ulid()}`;
+  console.log("order id", orderId);
 
   // send to engine
   try {
     const result = await loopback({
       messageType: "create_order",
-      orderId: order.id,
+      orderId,
       userId,
       marketId,
       side,
@@ -205,7 +191,7 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
       slippage: slippage,
       leverage: leverage,
     });
-    res.status(200).json({ orderId: order.id, ...result });
+    res.status(200).json({ orderId: orderId, ...result });
   } catch (e) {
     res.status(504).json({ message: "Engine Timeout" });
   }

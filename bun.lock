@@ -27,13 +27,14 @@
         "@prisma/adapter-pg": "^7.8.0",
         "@types/express": "^5.0.6",
         "@types/jsonwebtoken": "^9.0.10",
-        "commons": "workspace: *",
+        "commons": "workspace:*",
         "db": "workspace:*",
         "express": "^5.2.1",
         "jsonwebtoken": "^9.0.3",
         "pg": "^8.21.0",
         "prisma": "^7.8.0",
         "redis": "^6.0.0",
+        "ulid": "^3.0.2",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -58,6 +59,9 @@
     },
     "apps/poller": {
       "name": "poller",
+      "dependencies": {
+        "redis": "^6.0.0",
+      },
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -998,6 +1002,8 @@
     "typescript": ["typescript@5.9.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A=="],
 
     "typescript-eslint": ["typescript-eslint@8.60.1", "", { "dependencies": { "@typescript-eslint/eslint-plugin": "8.60.1", "@typescript-eslint/parser": "8.60.1", "@typescript-eslint/typescript-estree": "8.60.1", "@typescript-eslint/utils": "8.60.1" }, "peerDependencies": { "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.1.0" } }, "sha512-6m5hkkRAp8lKvhVpcprAIn5KkehQEh+47oHH2VGnExEh7dhNxXlg6GPAOIu6TxbVQxhebrJDvjl3020ooiWCMA=="],
+
+    "ulid": ["ulid@3.0.2", "", { "bin": { "ulid": "dist/cli.js" } }, "sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w=="],
 
     "unbox-primitive": ["unbox-primitive@1.1.0", "", { "dependencies": { "call-bound": "^1.0.3", "has-bigints": "^1.0.2", "has-symbols": "^1.1.0", "which-boxed-primitive": "^1.1.1" } }, "sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw=="],
 
