@@ -6,7 +6,7 @@ export type ToEngine =
     }
   | {
       messageType: "create_order";
-      price: string;
+      price: number;
       qty: string;
       side: "short" | "long";
       marketId: string;
@@ -14,6 +14,8 @@ export type ToEngine =
       userId: string;
       equity: string;
       orderId: string;
+      slippage: string;
+      leverage: string;
     }
   | {
       messageType: "cancel_order";
@@ -26,6 +28,11 @@ export type ToEngine =
     }
   | {
       messageType: "balance";
+      userId: string;
+    }
+  | {
+      messageType: "withdraw";
+      amount: string;
       userId: string;
     };
 

@@ -51,6 +51,14 @@ async function main() {
             console.log("return the users balance", message);
             break;
 
+          case "withdraw":
+            console.log("return money back to there wallet", message);
+            break;
+
+          case "create_order":
+            console.log("create order - create order in the market", message);
+            break;
+
           default:
             console.log("not correct message type");
             break;
