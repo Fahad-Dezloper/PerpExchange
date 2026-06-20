@@ -64,6 +64,8 @@
       },
       "devDependencies": {
         "@types/bun": "latest",
+        "commons": "workspace:*",
+        "db": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -74,6 +76,20 @@
       "dependencies": {
         "@types/axios": "^0.14.4",
         "axios": "^1.17.0",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "apps/ws": {
+      "name": "ws",
+      "dependencies": {
+        "jsonwebtoken": "^9.0.3",
+        "redis": "^6.0.0",
+        "ulid": "^3.0.2",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -1030,6 +1046,8 @@
     "word-wrap": ["word-wrap@1.2.5", "", {}, "sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA=="],
 
     "wrappy": ["wrappy@1.0.2", "", {}, "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="],
+
+    "ws": ["ws@workspace:apps/ws"],
 
     "xtend": ["xtend@4.0.2", "", {}, "sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ=="],
 
