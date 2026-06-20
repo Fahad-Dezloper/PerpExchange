@@ -24,3 +24,28 @@ export type ToEngine =
       messageType: "create_market";
       marketId: string;
     };
+
+// order types
+export type OpenOrder = {
+  userId: string;
+  originlaOrderId: string;
+  qty: string;
+  filledQty: string;
+};
+
+export type Bid = {
+  availableQty: number;
+  openOrders: OpenOrder[];
+};
+
+export type Ask = {
+  availableQty: number;
+  openOrders: OpenOrder[];
+};
+
+export interface Orderbook {
+  bids: Map<string, Bid>;
+  asks: Map<string, Ask>;
+  marketId: string;
+  lastTradedPrice: number;
+}

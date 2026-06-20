@@ -1,46 +1,137 @@
+import { createClient } from "redis";
+import type { Orderbook, ToEngine } from "commons";
 
-client.xGroupCreate("to-backend", BACKEND_CONSUMER_GROUP, "$", {
-  MKSTREAM: true,
-});
+// pushing to the engine queue from backend
+const client = createClient();
+client.connect();
 
-const loopBackResolves = new Map<string, () => {}>();
+// engine pushing to the queue from where backend is picking up
+const publisher = createClient();
+publisher.connect();
 
-export function loopback(message: ToEngine) {
-  return new Promise(async (resolve, reject) => {
-    const loopBackId = Math.random().toString();
-    await client.xAdd("engine", "*", { loopBackId, ...message });
-    loopBackResolves.set(loopBackId, resolve);
-    setTimeout(() => {
-      if (loopBackResolves.get(message.loopBackId)) {
-        reject();
-        loopBackResolves.delete(message.loopBackId);
-      }
-    }, 10000);
-  });
-}
+const orderbooks: Orderbook[] = [];
+const balances: Map<string, { available: string; locked: string }> = new Map();
+const positions: Map<
+  string,
+  Map<
+    string,
+    {
+      side: "long" | "short";
+      averagePrice: number;
+      qty: string;
+      liquidationPrice: string;
+      stopLoss: string;
+      takeProfit: string;
+      equity: string;
+    }
+  >
+> = new Map();
 
-async function main() {
+async function matching() {
   while (1) {
-    const response = await subscriber.xReadGroup(
-      BACKEND_CONSUMER_GROUP,
-      BACKEND_CONSUMER_GROUP,
+    const response = await client.xReadGroup(
+      "engine",
+      "engine",
       [
         {
-          key: "to-backend",
+          key: "engine",
           id: ">",
         },
       ],
       {
-        BLOCK: 0,
+        BLOCK: 100,
         COUNT: 1,
       },
     );
 
+    if (!response) {
+      continue;
+    }
+
     const message: {
       loopBackId: string;
-    } & ToEngine = response[0]?.messages[0]?.message;
+    } & ToEngine = response[0]!.messages[0].message;
 
-    loopBackResolves.get(message.loopBackId)?.();
-    loopBackResolves.delete(message.loopBackId);
+    if (message.messageType == "create_market") {
+      orderbooks.push({
+        bids: new Map(),
+        asks: new Map(),
+        lastTradedPrice: -1,
+        marketId: message.marketId,
+      });
+
+      await publisher.xAdd("to-backend", "*", {
+        loopBackId: message.loopBackId,
+      });
+    }
+
+    if (message.messageType === "onramp") {
+      balances.get(message.userId)!.available += message.amount;
+      await publisher.xAdd("to-backend", "*", {
+        loopBackId: message.loopBackId,
+      });
+    }
+
+    if (message.messageType === "create_order") {
+      // create a new order, match if possible
+    }
+
+    if (message.messageType === "cancel_order") {
+      //  cancel an open order
+    }
+
+    if (message.messageType === "get_depth") {
+      //  get the depth for a market
+    }
+
+    if (message.messageType === "spot_price_update") {
+      // do liquidation checks, stop loss and take profit
+    }
+
+    if (message.messageType === "get_funding_rate") {
+      // get the funding rate based on the diff b/w mark price and last traded price
+    }
   }
 }
+
+function fundingRateDespersal() {
+  // check the mark price, calculate how far it is from the last traded price
+  // longs pay shortts or vice versa
+  // liquidation price changes for all positions
+  positions.forEach((userPositions, userId) => {
+    userPositions.forEach((position, marketId) => {
+      const orderbook = orderbooks.get(marketId);
+      if (!orderbook) return;
+
+      const inflationRate =
+        (Number(orderbook.lastTradedPrice) - Number(orderbook.markPrice)) /
+        Number(orderbook.markPrice);
+
+      if (position.side === "long") {
+        const notionalValue =
+          Number(position.qty) * Number(orderbook.lastTradedPrice);
+        position.equity = (
+          Number(position.equity) -
+          notionalValue * inflationRate
+        ).toString();
+        // recalculate liquidation price
+      } else {
+        const notionalValue =
+          Number(position.qty) * Number(orderbook.lastTradedPrice);
+        position.equity += (
+          Number(position.equity) +
+          notionalValue * inflationRate
+        ).toString();
+        // recalculate liquidation price
+      }
+    });
+  });
+}
+
+matching();
+setInterval(
+  () => {
+    fundingRateDespersal();
+  },
+  8 * 60 * 60 * 1000,
+);

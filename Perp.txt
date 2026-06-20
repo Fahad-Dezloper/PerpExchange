@@ -15,3 +15,6 @@ v3
 
 there is no cron job or anything that runs which checks liquidation price and bankruptcy price.
 external people run bots to do that and make money from that
+
+
+
