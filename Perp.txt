@@ -18,3 +18,5 @@ external people run bots to do that and make money from that
 
 
 
+// think about it
+Backend talking to backend ( protobuf )
