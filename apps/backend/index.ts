@@ -2,7 +2,7 @@ import express from "express";
 import { prisma } from "db";
 import Jwt from "jsonwebtoken";
 import { authMiddleware } from "./middleware";
-import { loopback } from "./loopback";
+import { initQueue, loopback } from "./loopback";
 import { ulid } from "ulid";
 
 const app = express();
@@ -136,11 +136,15 @@ app.post("/api/v1/market", async (req, res) => {
     },
   });
 
+  console.log("reached here", response);
+
   // publish and wait for the other queue to return the response
   const LoopbackResponse = await loopback({
     messageType: "create_market",
     marketId: response.id.toString(),
   });
+
+  console.log("loop back response", LoopbackResponse);
 
   res.json({
     id: response.id,
@@ -236,4 +240,5 @@ app.post("/api/v1/depth", async (req, res) => {
   }
 });
 
+await initQueue();
 app.listen(3000);

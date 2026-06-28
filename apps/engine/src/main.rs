@@ -4,10 +4,10 @@ use redis::streams::{StreamReadOptions, StreamReadReply};
 use std::collections::HashMap;
 use types::ToEngine;
 
-const STREAM: &str = "engine_stream";
-const GROUP: &str = "engine_group";
+const STREAM: &str = "to-engine";
+const GROUP: &str = "engine-group";
 const CONSUMER: &str = "engine_consumer";
-const REPLY_CHANNEL: &str = "engine_replies";
+const REPLY_CHANNEL: &str = "engine-replies";
 
 #[tokio::main]
 async fn main() -> redis::RedisResult<()> {
@@ -35,6 +35,7 @@ async fn main() -> redis::RedisResult<()> {
 
     loop {
         let reply: StreamReadReply = consumer.xread_options(&[STREAM], &[">"], &opts).await?;
+        println!("reply here recieved {reply:?}");
 
         for key in reply.keys {
             for entry in key.ids {
@@ -49,7 +50,9 @@ async fn main() -> redis::RedisResult<()> {
                     .collect();
 
                 let request_id = fields.get("requestId").cloned().unwrap_or_default();
+                println!("request id recieved here {request_id:?}");
                 let payload = fields.get("payload").cloned().unwrap_or_default();
+                println!("payload recieved here {payload:?}");
 
                 let result = match serde_json::from_str::<ToEngine>(&payload) {
                     Ok(msg) => handle(msg),
