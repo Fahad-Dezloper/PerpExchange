@@ -1,8 +1,10 @@
 mod types;
+mod state;
 use redis::AsyncCommands;
 use redis::streams::{StreamReadOptions, StreamReadReply};
 use std::collections::HashMap;
 use types::ToEngine;
+use state::Engine;
 
 const STREAM: &str = "to-engine";
 const GROUP: &str = "engine-group";
@@ -27,6 +29,8 @@ async fn main() -> redis::RedisResult<()> {
     }
 
     println!("engine running, consuming {STREAM}");
+
+    let mut engine = Engine::new(); // <-- in-memory state, lives across messages
 
     let opts = StreamReadOptions::default()
         .group(GROUP, CONSUMER)
@@ -55,7 +59,7 @@ async fn main() -> redis::RedisResult<()> {
                 println!("payload recieved here {payload:?}");
 
                 let result = match serde_json::from_str::<ToEngine>(&payload) {
-                    Ok(msg) => handle(msg),
+                    Ok(msg) => handle(&mut engine, msg),
                     Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
                 };
 
@@ -75,15 +79,12 @@ async fn main() -> redis::RedisResult<()> {
     }
 }
 
-fn handle(msg: ToEngine) -> serde_json::Value {
+fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
     println!("received: {msg:?}");
     match msg {
-        ToEngine::CreateMarket { market_id } => {
-            serde_json::json!({"ok": true, "marketId": market_id})
-        }
-        ToEngine::Onramp { user_id, amount } => {
-            serde_json::json!({"ok": true, "userId": user_id, "amount": amount})
-        }
-        _ => serde_json::json!({"ok": true}),
+        ToEngine::CreateMarket { market_id } => engine.create_market(market_id),
+        ToEngine::Onramp { user_id, amount } => engine.onramp(user_id, amount),
+        ToEngine::Balance { user_id } => engine.balance(&user_id),
+        _ => serde_json::json!({"ok": true, "note": "note implemented"}),
     }
 }
