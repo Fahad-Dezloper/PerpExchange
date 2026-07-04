@@ -1,5 +1,6 @@
 mod types;
 mod state;
+mod orderbook;
 use redis::AsyncCommands;
 use redis::streams::{StreamReadOptions, StreamReadReply};
 use std::collections::HashMap;
@@ -83,6 +84,10 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
     println!("received: {msg:?}");
     match msg {
         ToEngine::CreateMarket { market_id } => engine.create_market(market_id),
+        ToEngine::CreateOrder { order_id, user_id, market_id, side, price, qty, .. } =>
+            engine.create_order(order_id, user_id, market_id, side, price, qty),
+        ToEngine::CancelOrder { order_id, market_id, user_id } =>
+            engine.cancel_order(&order_id, &user_id, "??"),
         ToEngine::Onramp { user_id, amount } => engine.onramp(user_id, amount),
         ToEngine::Balance { user_id } => engine.balance(&user_id),
         _ => serde_json::json!({"ok": true, "note": "note implemented"}),

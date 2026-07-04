@@ -28,6 +28,8 @@ pub enum ToEngine {
     CancelOrder {
         #[serde(rename = "orderId")]
         order_id: String,
+        #[serde(rename = "marketId")]
+        market_id: String,
         #[serde(rename = "userId")]
         user_id: String,
     },

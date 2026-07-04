@@ -203,9 +203,9 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
 
 app.post("/api/v1/order/cancel", authMiddleware, async (req, res) => {
   const userId = req.userId!;
-  const { orderId } = req.body;
+  const { orderId, marketId } = req.body;
 
-  if (!orderId) {
+  if (!orderId || !marketId) {
     return res.status(411).json({ message: "Missing orderId" });
   }
 
@@ -213,6 +213,7 @@ app.post("/api/v1/order/cancel", authMiddleware, async (req, res) => {
     const result = await loopback({
       messageType: "cancel_order",
       orderId,
+      marketId,
       userId,
     });
     res.status(200).json(result);

@@ -1,3 +1,5 @@
+use crate::orderbook::{Fill, Orderbook};
+use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -6,13 +8,6 @@ use std::str::FromStr;
 pub struct Balance {
     pub available: Decimal,
     pub locked: Decimal,
-}
-
-#[derive(Debug, Default)]
-pub struct Orderbook {
-    pub market_id: String,
-    pub last_traded_price: Decimal,
-    // bids/asks added when matching lands
 }
 
 #[derive(Debug)]
@@ -42,13 +37,8 @@ impl Engine {
             return serde_json::json!({ "ok": false, "error": "market exists" });
         }
 
-        self.orderbooks.insert(
-            market_id.clone(),
-            Orderbook {
-                market_id: market_id.clone(),
-                ..Default::default()
-            },
-        );
+        self.orderbooks
+            .insert(market_id.clone(), Orderbook::new(market_id.clone()));
         serde_json::json!({ "ok": true, "marketId": market_id })
     }
 

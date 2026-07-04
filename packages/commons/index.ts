@@ -20,6 +20,7 @@ export type ToEngine =
   | {
       messageType: "cancel_order";
       orderId: string;
+      marketId: string;
       userId: string;
     }
   | {
