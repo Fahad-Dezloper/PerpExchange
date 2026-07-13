@@ -1,6 +1,6 @@
 use crate::orderbook::Orderbook;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -79,11 +79,27 @@ impl Engine {
         side: String, // "long" | "short"
         price: f64,
         qty: String,
+        leverage: u32,
     ) -> serde_json::Value {
-        let book = match self.orderbooks.get_mut(&market_id) {
-            Some(b) => b,
-            None => return serde_json::json!({ "ok": false, "error": "no market" }),
-        };
+        let notional = price * qty;
+        let margin = notional / Decimal::from(leverage.max(1));
+
+        // lock funds first - reject if broke
+        if !self.lock_margin(&user_id, margin) {
+            return serde_json::json!({ "ok": false, "error": "insufficient balance" });
+        }
+
+        let book = self.orderbooks.get_mut(&market_id).unwrap();
+        let (fills, remaining) = book.add_limit(
+            order_id.clone(),
+            user_id.clone(),
+            is_buy,
+            price,
+            qty,
+            leverage,
+            margin,
+        );
+
         let qty = match Decimal::from_str(&qty) {
             Ok(q) if q > Decimal::ZERO => q,
             _ => return serde_json::json!({ "ok": false, "error": "bad qty" }),
@@ -93,7 +109,6 @@ impl Engine {
             None => return serde_json::json!({ "ok": false, "error": "bad price" }),
         };
         let is_buy = side == "long";
-        let (fills, remaining) = book.add_limit(order_id.clone(), user_id, is_buy, price, qty);
 
         let filled = qty - remaining;
         let status = if remaining == Decimal::ZERO {
@@ -132,15 +147,16 @@ impl Engine {
         market_id: &str,
     ) -> serde_json::Value {
         println!("market ids: {:?}", self.orderbooks.keys());
-
-        if let Some(b) = self.orderbooks.get_mut(market_id) {
-            if b.cancel(order_id, user_id) {
+        let book = match self.orderbooks.get_mut(market_id) {
+            Some(b) => b,
+            None => return serde_json::json!({"ok": false, "error": "no market"}),
+        };
+        match book.cancel(order_id, user_id) {
+            Some(o) => {
+                self.unlock_margin(user_id, o.margin);
                 serde_json::json!({ "ok": true, "status": "Cancelled" })
-            } else {
-                serde_json::json!({ "ok": false, "error": "order not found" })
             }
-        } else {
-            serde_json::json!({ "ok": false, "error": "no market" })
+            None => serde_json::json!({ "ok": false, "error": "order not found" }),
         }
     }
 
@@ -152,5 +168,21 @@ impl Engine {
             }
             None => serde_json::json!({ "ok": false, "error": "no market" }),
         }
+    }
+
+    pub fn lock_margin(&mut self, user_id: &str, amount: Decimal) -> bool {
+        let bal = self.balances.entry(user_id.to_string()).or_default();
+        if bal.available < amount {
+            return false;
+        }
+        bal.available -= amount;
+        bal.locked += amount;
+        true
+    }
+
+    fn unlock_margin(&mut self, user_id: &str, amount: Decimal) {
+        let bal = self.balances.entry(user_id.to_string()).or_default();
+        bal.locked -= amount;
+        bal.available += amount;
     }
 }

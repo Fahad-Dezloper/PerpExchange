@@ -33,6 +33,16 @@ pub struct Orderbook {
     pub last_traded_price: Decimal,
 }
 
+#[derive(Debug)]
+pub struct RestingOrder {
+    pub order_id: String,
+    pub user_id: String,
+    pub qty: Decimal,
+    pub filled: Decimal,
+    pub leverage: u32,
+    pub margin: Decimal,
+}
+
 impl Orderbook {
     pub fn new(market_id: String) -> Self {
         Orderbook {
@@ -138,20 +148,18 @@ impl Orderbook {
     pub fn cancel(&mut self, order_id: &str, user_id: &str) -> bool {
         for book in [&mut self.bids, &mut self.asks] {
             for (_price, level) in book.iter_mut() {
-                if let Some(pos) = level
+                if let Some(i) = level
                     .iter()
                     .position(|o| o.order_id == order_id && o.user_id == user_id)
                 {
-                    level.remove(pos);
-                    return true;
+                    let o = level.remove(i);
+                    self.bids.retain(|_, l| !l.is_empty());
+                    self.asks.retain(|_, l| !l.is_empty());
                 }
             }
         }
-
         // cleanup empty levels
-        self.bids.retain(|_, l| !l.is_empty());
-        self.asks.retain(|_, l| !l.is_empty());
-        false
+        None
     }
 
     /// aggreagated depth: [price, totalQty] per level
