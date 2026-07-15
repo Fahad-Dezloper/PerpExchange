@@ -7,6 +7,8 @@ pub struct RestingOrder {
     pub user_id: String,
     pub qty: Decimal,
     pub filled: Decimal,
+    pub leverage: u32,
+    pub margin: Decimal,
 }
 
 impl RestingOrder {
@@ -23,6 +25,7 @@ pub struct Fill {
     pub taker_order_id: String,
     pub maker_user_id: String,
     pub taker_user_id: String,
+    pub maker_leverage: u32,
 }
 
 #[derive(Default, Debug)]
@@ -31,16 +34,6 @@ pub struct Orderbook {
     pub bids: BTreeMap<Decimal, VecDeque<RestingOrder>>, // buyers
     pub asks: BTreeMap<Decimal, VecDeque<RestingOrder>>, // sellers
     pub last_traded_price: Decimal,
-}
-
-#[derive(Debug)]
-pub struct RestingOrder {
-    pub order_id: String,
-    pub user_id: String,
-    pub qty: Decimal,
-    pub filled: Decimal,
-    pub leverage: u32,
-    pub margin: Decimal,
 }
 
 impl Orderbook {
@@ -59,6 +52,8 @@ impl Orderbook {
         is_buy: bool,
         price: Decimal,
         qty: Decimal,
+        leverage: u32,
+        margin: Decimal,
     ) -> (Vec<Fill>, Decimal) {
         let mut fills = Vec::new();
         let mut remaining = qty;
@@ -114,6 +109,7 @@ impl Orderbook {
                     taker_order_id: order_id.clone(),
                     maker_user_id: maker.user_id.clone(),
                     taker_user_id: user_id.clone(),
+                    maker_leverage: maker.leverage,
                 });
                 self.last_traded_price = best_price;
 
@@ -129,6 +125,7 @@ impl Orderbook {
 
         // rest remainder on own side
         if remaining > Decimal::ZERO {
+            let rest_margin = margin * (remaining / qty);
             let side = if is_buy {
                 &mut self.bids
             } else {
@@ -139,27 +136,43 @@ impl Orderbook {
                 user_id,
                 qty: remaining,
                 filled: Decimal::ZERO,
+                leverage,
+                margin: rest_margin,
             });
         }
 
         (fills, remaining)
     }
 
-    pub fn cancel(&mut self, order_id: &str, user_id: &str) -> bool {
-        for book in [&mut self.bids, &mut self.asks] {
-            for (_price, level) in book.iter_mut() {
-                if let Some(i) = level
-                    .iter()
-                    .position(|o| o.order_id == order_id && o.user_id == user_id)
-                {
-                    let o = level.remove(i);
-                    self.bids.retain(|_, l| !l.is_empty());
-                    self.asks.retain(|_, l| !l.is_empty());
-                }
+    pub fn cancel(&mut self, order_id: &str, user_id: &str) -> Option<RestingOrder> {
+        if let Some(o) = Self::remove_from(&mut self.bids, order_id, user_id) {
+            return Some(o);
+        }
+        Self::remove_from(&mut self.asks, order_id, user_id)
+    }
+
+    fn remove_from(
+        book: &mut BTreeMap<Decimal, VecDeque<RestingOrder>>,
+        order_id: &str,
+        user_id: &str,
+    ) -> Option<RestingOrder> {
+        let mut found = None;
+        for (price, level) in book.iter() {
+            if let Some(i) = level
+                .iter()
+                .position(|o| o.order_id == order_id && o.user_id == user_id)
+            {
+                found = Some((*price, i));
+                break;
             }
         }
-        // cleanup empty levels
-        None
+        let (price, idx) = found?;
+        let level = book.get_mut(&price)?;
+        let order = level.remove(idx)?;
+        if level.is_empty() {
+            book.remove(&price);
+        }
+        Some(order)
     }
 
     /// aggreagated depth: [price, totalQty] per level

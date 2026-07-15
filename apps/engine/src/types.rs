@@ -54,4 +54,9 @@ pub enum ToEngine {
         #[serde(rename = "marketId")]
         market_id: String,
     },
+
+    GetPositions {
+        #[serde(rename = "userId")]
+        user_id: String,
+    },
 }

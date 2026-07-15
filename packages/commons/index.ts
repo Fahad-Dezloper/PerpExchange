@@ -39,6 +39,10 @@ export type ToEngine =
   | {
       messageType: "get_depth";
       marketId: string;
+    }
+  | {
+      messageType: "get_positions";
+      userId: string;
     };
 
 // order types
