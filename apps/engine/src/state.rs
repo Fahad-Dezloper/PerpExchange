@@ -209,27 +209,43 @@ impl Engine {
         }
     }
 
-    pub fn get_position(&self, user_id: &str) -> serde_json::Value {
+    pub fn get_positions(&self, user_id: &str) -> serde_json::Value {
         let list: Vec<_> = self
             .positions
             .get(user_id)
             .map(|ps| {
                 ps.iter()
                     .map(|(m, p)| {
+                        let mark = self
+                            .orderbooks
+                            .get(m)
+                            .map(|b| b.last_traded_price)
+                            .unwrap_or(p.avg_entry_price);
+
+                        let upnl = if p.side == "Long" {
+                            (mark - p.avg_entry_price) * p.qty
+                        } else {
+                            (p.avg_entry_price - mark) * p.qty
+                        };
+                        let equity = p.margin + upnl;
+
                         serde_json::json!({
                             "marketId": m,
                             "side": p.side,
                             "qty": p.qty.to_string(),
                             "entryPrice": p.avg_entry_price.to_string(),
+                            "markPrice": mark.to_string(),
                             "margin": p.margin.to_string(),
                             "leverage": p.leverage,
                             "liquidationPrice": p.liquidation_price.to_string(),
+                            "unrealizedPnl": upnl.to_string(),
+                            "equity": equity.to_string()
                         })
                     })
                     .collect()
             })
             .unwrap_or_default();
-        serde_json::json!({ "ok": true, "position": list })
+        serde_json::json!({ "ok": true, "positions": list })
     }
 
     pub fn create_order(
@@ -387,5 +403,22 @@ impl Engine {
         let bal = self.balances.entry(user_id.to_string()).or_default();
         bal.locked -= amount;
         bal.available += amount;
+    }
+
+    pub fn withdraw(&mut self, user_id: String, amount: String) -> serde_json::Value {
+        let amt = match Decimal::from_str(&amount) {
+            Ok(a) if a > Decimal::ZERO => a,
+            _ => return serde_json::json!({ "ok": false, "error": "insufficient balance" }),
+        };
+        let bal = self.balances.entry(user_id).or_default();
+        if bal.available < amt {
+            return serde_json::json!({ "ok": false, "error": "insufficient balance" });
+        }
+        bal.available -= amt;
+        serde_json::json!({
+            "ok": true,
+            "available": bal.available.to_string(),
+            "locked": bal.locked.to_string()
+        })
     }
 }

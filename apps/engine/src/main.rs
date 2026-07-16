@@ -93,15 +93,10 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
             qty,
             leverage,
             ..
-        } => engine.create_order(
-            order_id,
-            user_id,
-            market_id,
-            side,
-            price,
-            qty,
-            leverage.parse().unwrap_or(1),
-        ),
+        } => {
+            let lev = leverage.parse::<u32>().unwrap_or(1);
+            engine.create_order(order_id, user_id, market_id, side, price, qty, lev)
+        }
         ToEngine::CancelOrder {
             order_id,
             market_id,
@@ -109,7 +104,9 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         } => engine.cancel_order(&order_id, &user_id, &market_id),
         ToEngine::Onramp { user_id, amount } => engine.onramp(user_id, amount),
         ToEngine::Balance { user_id } => engine.balance(&user_id),
+        ToEngine::GetPositions { user_id } => engine.get_positions(&user_id),
         ToEngine::GetDepth { market_id } => engine.get_depth(&market_id),
+        ToEngine::Withdraw { user_id, amount } => engine.withdraw(user_id, amount),
         _ => serde_json::json!({"ok": true, "note": "note implemented"}),
     }
 }

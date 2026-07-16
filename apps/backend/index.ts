@@ -241,5 +241,15 @@ app.post("/api/v1/depth", async (req, res) => {
   }
 });
 
+app.post("/api/v1/positions", authMiddleware, async (req, res) => {
+  const userId = req.userId!;
+  try {
+    const result = await loopback({ messageType: "get_positions", userId });
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(504).json({ message: "Engine timeout" });
+  }
+});
+
 await initQueue();
 app.listen(3000);
