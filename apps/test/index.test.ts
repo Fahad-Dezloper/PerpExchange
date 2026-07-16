@@ -1,13 +1,106 @@
 // unit tests vs integration tests
 // unit test are single component test like orderbook
 // integeration test are end to end test of user flow. dont care about the language very generic
-import { beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { BACKEND } from "./config";
 import axios, { AxiosError } from "axios";
+import { createClient } from "redis";
 
 const ADMIN = process.env.ADMIN_SECRET!;
 const rnd = () => Math.random().toString(36).slice(2);
 const auth = (token: string) => ({ headers: { token } });
+
+const redis = createClient();
+let redisReady = false;
+
+async function ensureRedis() {
+  if (!redisReady) {
+    await redis.connect();
+    redisReady = true;
+  }
+}
+
+async function setMarkPrice(marketId: string, price: string) {
+  await ensureRedis();
+  await redis.xAdd("to-engine", "*", {
+    requestId: "test-" + rnd(),
+    payload: JSON.stringify({
+      messageType: "mark_price_update",
+      marketId,
+      price,
+    }),
+  });
+}
+
+async function waitFor<T>(
+  fn: () => Promise<T>,
+  ok: (v: T) => boolean,
+  timeoutMs = 3000,
+): Promise<T> {
+  const start = Date.now();
+  let last: T;
+  while (Date.now() - start < timeoutMs) {
+    last = await fn();
+    if (ok(last)) return last;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return last!;
+}
+
+afterAll(async () => {
+  if (redisReady) await redis.quit();
+});
+
+describe("mark price drives unrealized pnl", () => {
+  let A: string, B: string, m: string;
+
+  beforeAll(async () => {
+    A = await makeUser();
+    B = await makeUser();
+    m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+  });
+
+  it("uses oracle mark price, not last traded", async () => {
+    await setMarkPrice(m, "110");
+
+    const pa = await waitFor(
+      () => positions(A),
+      (p) => p[0]?.markPrice === "110",
+    );
+
+    expect(pa[0].markPrice).toBe("110");
+    expect(Number(pa[0].unrealizedPnl)).toBe(20); // (110-100)*2
+    expect(Number(pa[0].equity)).toBe(60); // margin 40 + 20
+  }, 15_000);
+
+  it("short side mirrors the long", async () => {
+    const pb = await waitFor(
+      () => positions(B),
+      (p) => p[0]?.markPrice === "110",
+    );
+
+    expect(pb[0].side).toBe("Short");
+    expect(Number(pb[0].unrealizedPnl)).toBe(-20); // (100-110)*2
+    expect(Number(pb[0].equity)).toBe(20); // margin 40 - 20
+  });
+
+  it("price drop flips pnl signs", async () => {
+    await setMarkPrice(m, "90");
+
+    const pa = await waitFor(
+      () => positions(A),
+      (p) => p[0]?.markPrice === "90",
+    );
+
+    expect(Number(pa[0].unrealizedPnl)).toBe(-20); // long loses
+    expect(Number(pa[0].equity)).toBe(20);
+  });
+});
 
 // helpers
 async function makeUser(): Promise<string> {
@@ -213,4 +306,49 @@ describe("closing a position returns margin", () => {
     expect(Number(b.available)).toBe(1000);
     expect(Number(b.locked)).toBe(0);
   });
+});
+
+describe("liquidation", () => {
+  let A: string, B: string, m: string;
+
+  beforeAll(async () => {
+    A = await makeUser();
+    B = await makeUser();
+    m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+    // A long 2@100 lev5 -> margin 40, liq price 80.5
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+  });
+
+  it("does not liquidate above the liq price", async () => {
+    await setMarkPrice(m, "85");
+    const pa = await waitFor(
+      () => positions(A),
+      (p) => p[0]?.markPrice === "85",
+    );
+    expect(pa.length).toBe(1); // still alive
+  }, 15_000);
+
+  it("liquidates the long when mark crosses liq price", async () => {
+    await setMarkPrice(m, "80");
+    const pa = await waitFor(
+      () => positions(A),
+      (p) => p.length === 0,
+    );
+    expect(pa.length).toBe(0); // position wiped
+  }, 15_000);
+
+  it("liquidated trader loses the margin", async () => {
+    const b = await balance(A);
+    expect(Number(b.locked)).toBe(0); // margin released
+    expect(Number(b.available)).toBe(960); // 1000 - 40 margin, payout 0
+  }, 15_000);
+
+  it("short side survives (it profited)", async () => {
+    const pb = await positions(B);
+    expect(pb.length).toBe(1);
+    expect(Number(pb[0].unrealizedPnl)).toBe(40); // (100-80)*2
+  }, 15_000);
 });

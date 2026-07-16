@@ -60,4 +60,10 @@ pub enum ToEngine {
         #[serde(rename = "userId")]
         user_id: String,
     },
+
+    MarkPriceUpdate {
+        #[serde(rename = "marketId")]
+        market_id: String,
+        price: String,
+    },
 }

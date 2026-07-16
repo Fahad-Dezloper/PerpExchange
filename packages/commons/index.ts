@@ -43,6 +43,11 @@ export type ToEngine =
   | {
       messageType: "get_positions";
       userId: string;
+    }
+  | {
+      messageType: "mark_price_update";
+      userId: string;
+      price: string;
     };
 
 // order types

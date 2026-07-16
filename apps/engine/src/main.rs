@@ -107,6 +107,7 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         ToEngine::GetPositions { user_id } => engine.get_positions(&user_id),
         ToEngine::GetDepth { market_id } => engine.get_depth(&market_id),
         ToEngine::Withdraw { user_id, amount } => engine.withdraw(user_id, amount),
+        ToEngine::MarkPriceUpdate { market_id, price } => engine.mark_price_update(market_id, price),
         _ => serde_json::json!({"ok": true, "note": "note implemented"}),
     }
 }

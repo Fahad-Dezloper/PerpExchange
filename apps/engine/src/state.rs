@@ -216,11 +216,7 @@ impl Engine {
             .map(|ps| {
                 ps.iter()
                     .map(|(m, p)| {
-                        let mark = self
-                            .orderbooks
-                            .get(m)
-                            .map(|b| b.last_traded_price)
-                            .unwrap_or(p.avg_entry_price);
+                        let mark = self.mark_of(m).unwrap_or(p.avg_entry_price);
 
                         let upnl = if p.side == "Long" {
                             (mark - p.avg_entry_price) * p.qty
@@ -420,5 +416,84 @@ impl Engine {
             "available": bal.available.to_string(),
             "locked": bal.locked.to_string()
         })
+    }
+
+    /// fetch oracle price else fallback to last traded price
+    fn mark_of(&self, market_id: &str) -> Option<Decimal> {
+        let b = self.orderbooks.get(market_id)?;
+        if b.mark_price > Decimal::ZERO {
+            Some(b.mark_price)
+        } else if b.last_traded_price > Decimal::ZERO {
+            Some(b.last_traded_price)
+        } else {
+            None
+        }
+    }
+
+    pub fn mark_price_update(&mut self, market_id: String, price: String) -> serde_json::Value {
+        let p = match Decimal::from_str(&price) {
+            Ok(p) if p > Decimal::ZERO => p,
+            _ => return serde_json::json!({ "ok": false, "error": "bad price" }),
+        };
+        match self.orderbooks.get_mut(&market_id) {
+            Some(b) => b.mark_price = p,
+            None => return serde_json::json!({ "ok": false, "error": "no market" }),
+        }
+
+        let liquidated = self.check_liquidations(&market_id, p);
+        if !liquidated.is_empty() {
+            println!("LIQUIDATED: {liquidated:?}");
+        }
+
+        // liquidation scan goes here
+        serde_json::json!({ "ok": true, "marketId": market_id, "markPrice": p.to_string(), "liquidated": liquidated })
+    }
+
+    fn check_liquidations(&mut self, market_id: &str, mark: Decimal) -> Vec<serde_json::Value> {
+        // collect first - can't mutate while iterating
+        let mut victims: Vec<(String, String, Decimal, Decimal, Decimal)> = Vec::new();
+        for (user_id, ups) in self.positions.iter() {
+            if let Some(p) = ups.get(market_id) {
+                let upnl = if p.side == "Long" {
+                    (mark - p.avg_entry_price) * p.qty
+                } else {
+                    (p.avg_entry_price - mark) * p.qty
+                };
+                let equity = p.margin + upnl;
+                // maint = maintenance
+                let maint = p.qty * p.avg_entry_price * Self::mmr();
+
+                if equity <= maint {
+                    victims.push((user_id.clone(), p.side.clone(), p.qty, upnl, p.margin));
+                }
+            }
+        }
+
+        let mut events = Vec::new();
+        for (user_id, side, qty, realized, margin) in victims {
+            // wipe the positions
+            if let Some(ups) = self.positions.get_mut(&user_id) {
+                ups.remove(market_id);
+                if ups.is_empty() {
+                    self.positions.remove(&user_id);
+                }
+            }
+
+            let payout = (margin + realized).max(Decimal::ZERO);
+            let bal = self.balances.entry(user_id.clone()).or_default();
+            bal.locked -= margin;
+            bal.available += payout;
+
+            events.push(serde_json::json!({
+                "userId": user_id,
+                "marketId": market_id,
+                "side": side,
+                "qty": qty.to_string(),
+                "markPrice": mark.to_string(),
+                "realizedPnl": realized.to_string(),
+                "payout": payout.to_string()
+            }));
+        }
+        events
     }
 }
