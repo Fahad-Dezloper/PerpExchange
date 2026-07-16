@@ -241,7 +241,7 @@ app.post("/api/v1/depth", async (req, res) => {
   }
 });
 
-app.post("/api/v1/positions", authMiddleware, async (req, res) => {
+app.get("/api/v1/positions", authMiddleware, async (req, res) => {
   const userId = req.userId!;
   try {
     const result = await loopback({ messageType: "get_positions", userId });
