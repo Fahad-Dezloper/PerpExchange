@@ -346,7 +346,7 @@ impl Engine {
         let status = if remaining == Decimal::ZERO {
             "Filled"
         } else if filled > Decimal::ZERO {
-            "partiallyFilled"
+            "PartiallyFilled"
         } else {
             "Open"
         };
@@ -364,7 +364,7 @@ impl Engine {
             .collect();
 
         let side_ba = if is_buy { "Bid" } else { "Ask" };
-        
+
         // ORDER CREATED (DURABLE, FOR POLLER)
         self.emit_db(serde_json::json!({
             "type": "order_created",
@@ -390,22 +390,28 @@ impl Engine {
                 "makerOrderId": f.maker_order_id,
                 "takerOrderId": f.taker_order_id,
                 "makerId": f.maker_user_id,
-                "takerId": f.taker_user_id 
+                "takerId": f.taker_user_id
             }));
 
-            self.emit_pub(format!("trade.{market_id}"), serde_json::json!({
-                "price": f.price.to_string(),
-                "qty": f.qty.to_string(),
-            }));
+            self.emit_pub(
+                format!("trade.{market_id}"),
+                serde_json::json!({
+                    "price": f.price.to_string(),
+                    "qty": f.qty.to_string(),
+                }),
+            );
         }
 
         // live depth snapshot
         if let Some(b) = self.orderbooks.get(&market_id) {
             let (bids, asks) = b.depth();
-            self.emit_pub(format!("depth.{market_id}"), serde_json::json!({
-                "bids": bids,
-                "asks": asks
-            }))
+            self.emit_pub(
+                format!("depth.{market_id}"),
+                serde_json::json!({
+                    "bids": bids,
+                    "asks": asks
+                }),
+            )
         }
 
         serde_json::json!({
@@ -502,9 +508,12 @@ impl Engine {
             None => return serde_json::json!({ "ok": false, "error": "no market" }),
         }
 
-        self.emit_pub(format!("ticker.{market_id}"), serde_json::json!({
-            "markPrice": p.to_string(),
-        }));
+        self.emit_pub(
+            format!("ticker.{market_id}"),
+            serde_json::json!({
+                "markPrice": p.to_string(),
+            }),
+        );
 
         let liquidated = self.check_liquidations(&market_id, p);
         for ev in &liquidated {

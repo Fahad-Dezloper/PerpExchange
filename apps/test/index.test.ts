@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { BACKEND } from "./config";
 import axios, { AxiosError } from "axios";
 import { createClient } from "redis";
+import { prisma } from "db";
 
 const ADMIN = process.env.ADMIN_SECRET!;
 const rnd = () => Math.random().toString(36).slice(2);
@@ -155,6 +156,11 @@ async function order(
 async function positions(token: string) {
   const r = await axios.get(`${BACKEND}/api/v1/positions`, auth(token));
   return r.data.positions as any[];
+}
+
+async function depth(marketId: string) {
+  const r = await axios.post(`${BACKEND}/api/v1/depth?marketId=${marketId}`);
+  return r.data as { bids: [string, string][]; asks: [string, string][] };
 }
 
 describe("auth", () => {
@@ -411,4 +417,136 @@ describe("engine emits trade events on fill", () => {
     );
     expect(found).toBe(true);
   }, 20_000);
+});
+
+describe("realized pnl on close", () => {
+  it("winner gains and loser loses the exact pnl", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // open: A long 2@100, B short 2@100
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+
+    // close at 110: A sells (rests), B buys (fills)
+    await order(A, m, "short", 110, "2", "5");
+    await order(B, m, "long", 110, "2", "5");
+
+    const ba = await balance(A);
+    const bb = await balance(B);
+
+    // A long, price 100->110 => +20 ; B short => -20
+    expect(Number(ba.available)).toBe(1020);
+    expect(Number(ba.locked)).toBe(0);
+    expect(Number(bb.available)).toBe(980);
+    expect(Number(bb.locked)).toBe(0);
+
+    expect((await positions(A)).length).toBe(0);
+    expect((await positions(B)).length).toBe(0);
+  }, 20_000);
+});
+
+describe("position increase and flip", () => {
+  it("same-side fill increases size with weighted avg entry", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // A long 2@100
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+
+    // A adds long 1@110
+    await order(A, m, "long", 110, "1", "5");
+    await order(B, m, "short", 110, "1", "5");
+
+    const pa = await positions(A);
+    expect(pa[0].side).toBe("Long");
+    expect(Number(pa[0].qty)).toBe(3);
+    expect(Number(pa[0].entryPrice)).toBeCloseTo(103.333, 2); // (2*100+1*110)/3
+  }, 20_000);
+
+  it("opposite fill larger than position flips the side", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // A long 2, B short 2
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+
+    // A shorts 3 (rests), B longs 3 (fills) -> both flip to size 1
+    await order(A, m, "short", 100, "3", "5");
+    await order(B, m, "long", 100, "3", "5");
+
+    const pa = await positions(A);
+    const pb = await positions(B);
+    expect(pa[0].side).toBe("Short");
+    expect(Number(pa[0].qty)).toBe(1);
+    expect(pb[0].side).toBe("Long");
+    expect(Number(pb[0].qty)).toBe(1);
+  }, 20_000);
+});
+
+describe("partial fill", () => {
+  it("taker partially fills, remainder rests, status PartiallyFilled", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // A rests long 2@100
+    await order(A, m, "long", 100, "2", "5");
+
+    // B shorts 5@100 -> fills 2, 3 rests
+    const b = await order(B, m, "short", 100, "5", "5");
+    expect(b.status).toBe("PartiallyFilled");
+
+    // B holds a Short 2 from the filled slice
+    const pb = await positions(B);
+    expect(Number(pb[0].qty)).toBe(2);
+    expect(pb[0].side).toBe("Short");
+
+    // 3 remaining rests on the ask side
+    const d = await depth(m);
+    const askAt100 = d.asks.find(([p]) => Number(p) === 100);
+    expect(askAt100).toBeDefined();
+    expect(Number(askAt100![1])).toBe(3);
+  }, 20_000);
+});
+
+describe("poller persists fills to postgres", () => {
+  it("writes a Fill row for a matched trade", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    await order(A, m, "long", 100, "1", "5");
+    await order(B, m, "short", 100, "1", "5");
+
+    // poller consumes to-db async -> retry until the row lands
+    const found = await waitFor(
+      async () => {
+        const fills = await prisma.fill.findMany({ where: { market_id: m } });
+        return fills.length;
+      },
+      (n) => n > 0,
+      8000,
+    );
+    expect(found).toBeGreaterThan(0);
+  }, 25_000);
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
 });

@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "redis": "^6.0.0",
-        "db": "workspace:*"
+    "db": "workspace:*"
 
   }
 }

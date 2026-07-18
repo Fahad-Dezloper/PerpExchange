@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────
+# 1. INFRA — Redis + Postgres (Docker)
+# ─────────────────────────────────────────────
+
+# Redis (command log + pubsub)
+docker start perp-redis 2>/dev/null || \
+docker run -d --name perp-redis -p 6379:6379 redis
+
+# Postgres (persistence)
+docker start perp-postgres 2>/dev/null || \
+docker run -d --name perp-postgres -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=perp postgres
+
+# verify both
+docker exec -it perp-redis redis-cli ping        # -> PONG
+docker exec -it perp-postgres pg_isready          # -> accepting connections
+
+
+# ─────────────────────────────────────────────
+# 2. DEPS + DB SCHEMA (one-time / after schema change)
+# ─────────────────────────────────────────────
+cd /Users/dezloper/Desktop/PerpExchange
+bun install
+
+cd packages/db
+bun run prisma generate          # regenerate client
+bun run prisma migrate deploy    # apply migrations
+# (dev alternative: bun run prisma migrate dev)
+
+
+# ─────────────────────────────────────────────
+# 3. SERVICES — each in its OWN terminal
+# ─────────────────────────────────────────────
+
+# terminal 1 — Rust engine (start FIRST, it owns the consumer groups)
+cd /Users/dezloper/Desktop/PerpExchange/apps/engine
+cargo run
+
+# terminal 2 — backend API (:3000)
+cd /Users/dezloper/Desktop/PerpExchange/apps/backend
+bun run index.ts
+
+# terminal 3 — poller (to-db stream -> Postgres)
+cd /Users/dezloper/Desktop/PerpExchange/apps/poller
+bun run index.ts
+
+# terminal 4 — ws server (:3001, market data fanout)
+cd /Users/dezloper/Desktop/PerpExchange/apps/ws
+bun run index.ts
+
+# terminal 5 — mark price poller (Binance -> to-engine)
+cd /Users/dezloper/Desktop/PerpExchange/apps/mark-price-poller
+bun run index.ts
+
+
+# ─────────────────────────────────────────────
+# 4. TESTS
+# ─────────────────────────────────────────────
+cd /Users/dezloper/Desktop/PerpExchange/apps/test
+bun run test

@@ -12,10 +12,12 @@
     "apps/LiquidationPoller": {
       "name": "liquidationpoller",
       "dependencies": {
+        "db": "workspace:*",
         "redis": "^6.0.0",
       },
       "devDependencies": {
         "@types/bun": "latest",
+        "commons": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -82,9 +84,11 @@
       "dependencies": {
         "@types/axios": "^0.14.4",
         "axios": "^1.17.0",
+        "redis": "^6.0.0",
       },
       "devDependencies": {
         "@types/bun": "latest",
+        "db": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
