@@ -79,7 +79,10 @@ async function handle(event: EngineEvent) {
 }
 
 // process one entry: apply it, then ack on success. failures stay pending.
-async function processEntry(entry: { id: string; message: { payload: string } }) {
+async function processEntry(entry: {
+  id: string;
+  message: { payload: string };
+}) {
   try {
     const event = JSON.parse(entry.message.payload) as EngineEvent;
     await handle(event);

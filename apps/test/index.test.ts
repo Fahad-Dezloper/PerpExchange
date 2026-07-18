@@ -547,6 +547,36 @@ describe("poller persists fills to postgres", () => {
   }, 25_000);
 });
 
+describe("poller persists to postgres (phase 8)", () => {
+  it("writes order + fill rows to the DB", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    await order(A, m, "long", 100, "1", "5");
+    const taker = await order(B, m, "short", 100, "1", "5");
+
+    const fill = await waitFor(
+      () => prisma.fill.findFirst({ where: { market_id: m } }),
+      (f) => f !== null,
+      10_000,
+    );
+    expect(fill).not.toBeNull();
+    expect(Number(fill!.price)).toBe(100);
+    expect(Number(fill!.qty)).toBe(1);
+
+    const ord = await waitFor(
+      () => prisma.order.findUnique({ where: { id: taker.orderId } }),
+      (o) => o !== null,
+      10_000,
+    );
+    expect(ord).not.toBeNull();
+    expect(ord!.market_id).toBe(m);
+  }, 30_000);
+});
+
 afterAll(async () => {
   await prisma.$disconnect();
 });
