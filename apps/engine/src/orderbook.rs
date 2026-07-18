@@ -34,7 +34,7 @@ pub struct Orderbook {
     pub bids: BTreeMap<Decimal, VecDeque<RestingOrder>>, // buyers
     pub asks: BTreeMap<Decimal, VecDeque<RestingOrder>>, // sellers
     pub last_traded_price: Decimal,
-    pub mark_price: Decimal,
+    pub mark_price: Decimal, // it is coming from oracle
 }
 
 impl Orderbook {
