@@ -352,3 +352,63 @@ describe("liquidation", () => {
     expect(Number(pb[0].unrealizedPnl)).toBe(40); // (100-80)*2
   }, 15_000);
 });
+
+describe("engine emits trade events on fill", () => {
+  it("broadcasts a trade on the market channel", async () => {
+    await ensureRedis();
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // dedicated subscriber connection
+    const sub = redis.duplicate();
+    await sub.connect();
+
+    const trade = new Promise<any>(async (resolve) => {
+      await sub.subscribe(`trade.${m}`, (raw) => resolve(JSON.parse(raw)));
+    });
+
+    await order(A, m, "long", 100, "1", "5"); // rests
+    await order(B, m, "short", 100, "1", "5"); // fills -> trade fires
+
+    const t = await Promise.race([
+      trade,
+      new Promise((_, r) =>
+        setTimeout(() => r(new Error("no trade event")), 5000),
+      ),
+    ]);
+
+    expect(Number((t as any).price)).toBe(100);
+    expect(Number((t as any).qty)).toBe(1);
+
+    await sub.quit();
+  }, 20_000);
+
+  it("writes a fill event to the to-db stream", async () => {
+    await ensureRedis();
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    await order(A, m, "long", 100, "1", "5");
+    await order(B, m, "short", 100, "1", "5");
+
+    // read recent to-db entries, find a fill for this market
+    const found = await waitFor(
+      async () => {
+        const entries = await redis.xRevRange("to-db", "+", "-", { COUNT: 50 });
+        return entries.some((e: any) => {
+          const p = JSON.parse(e.message.payload);
+          return p.type === "fill" && p.marketId === m;
+        });
+      },
+      (ok) => ok === true,
+      5000,
+    );
+    expect(found).toBe(true);
+  }, 20_000);
+});

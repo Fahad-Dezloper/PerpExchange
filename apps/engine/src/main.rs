@@ -64,6 +64,19 @@ async fn main() -> redis::RedisResult<()> {
                     Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
                 };
 
+                // flush emitted events
+                let (db_events, broadcasts) = engine.drain();
+                for e in db_events {
+                    let _: () = publisher
+                        .xadd("to-db", "*", &[("payload", e.to_string())])
+                        .await?;
+                }
+                for (ch, payload) in broadcasts {
+                    let _: () = publisher.publish(ch, payload.to_string()).await?;
+                }
+
+                
+
                 // reply via pubsub
                 let reply_payload = serde_json::json!({
                     "requestId": request_id,

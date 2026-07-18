@@ -25,6 +25,8 @@ pub struct Engine {
     pub balances: HashMap<String, Balance>,
     pub orderbooks: HashMap<String, Orderbook>,
     pub positions: HashMap<String, HashMap<String, Position>>,
+    pub out_db: Vec<serde_json::Value>, // durable events -> to-db
+    pub out_pub: Vec<(String, serde_json::Value)>, // (channel, payload) -> pubsub
 }
 
 const MMR_SCALE: (i64, u32) = (5, 3); // 0.005 maintenance margin ratio
@@ -32,6 +34,21 @@ const MMR_SCALE: (i64, u32) = (5, 3); // 0.005 maintenance margin ratio
 impl Engine {
     fn mmr() -> Decimal {
         Decimal::new(MMR_SCALE.0, MMR_SCALE.1)
+    }
+    fn emit_db(&mut self, e: serde_json::Value) {
+        self.out_db.push(e);
+    }
+
+    fn emit_pub(&mut self, ch: String, e: serde_json::Value) {
+        self.out_pub.push((ch, e));
+    }
+
+    /// main drains after each command and flushes to redis
+    pub fn drain(&mut self) -> (Vec<serde_json::Value>, Vec<(String, serde_json::Value)>) {
+        (
+            std::mem::take(&mut self.out_db),
+            std::mem::take(&mut self.out_pub),
+        )
     }
 
     fn liq_price(side: &str, entry: Decimal, qty: Decimal, margin: Decimal) -> Decimal {
@@ -346,6 +363,51 @@ impl Engine {
             })
             .collect();
 
+        let side_ba = if is_buy { "Bid" } else { "Ask" };
+        
+        // ORDER CREATED (DURABLE, FOR POLLER)
+        self.emit_db(serde_json::json!({
+            "type": "order_created",
+            "orderId": order_id,
+            "userId": user_id,
+            "marketId": market_id,
+            "side": side_ba,
+            "orderType": "Limit",
+            "price": price.to_string(),
+            "qty": qty.to_string(),
+            "status": status
+        }));
+
+        for (i, f) in fills.iter().enumerate() {
+            let fill_id = format!("{}-{}", f.taker_order_id, i);
+
+            self.emit_db(serde_json::json!({
+                "type": "fill",
+                "fillId": fill_id,
+                "marketId": market_id,
+                "price": f.price.to_string(),
+                "qty": f.qty.to_string(),
+                "makerOrderId": f.maker_order_id,
+                "takerOrderId": f.taker_order_id,
+                "makerId": f.maker_user_id,
+                "takerId": f.taker_user_id 
+            }));
+
+            self.emit_pub(format!("trade.{market_id}"), serde_json::json!({
+                "price": f.price.to_string(),
+                "qty": f.qty.to_string(),
+            }));
+        }
+
+        // live depth snapshot
+        if let Some(b) = self.orderbooks.get(&market_id) {
+            let (bids, asks) = b.depth();
+            self.emit_pub(format!("depth.{market_id}"), serde_json::json!({
+                "bids": bids,
+                "asks": asks
+            }))
+        }
+
         serde_json::json!({
             "ok": true,
             "orderId": order_id,
@@ -440,12 +502,17 @@ impl Engine {
             None => return serde_json::json!({ "ok": false, "error": "no market" }),
         }
 
+        self.emit_pub(format!("ticker.{market_id}"), serde_json::json!({
+            "markPrice": p.to_string(),
+        }));
+
         let liquidated = self.check_liquidations(&market_id, p);
-        if !liquidated.is_empty() {
-            println!("LIQUIDATED: {liquidated:?}");
+        for ev in &liquidated {
+            let mut e = ev.clone();
+            e["type"] = serde_json::json!("liquidation");
+            self.emit_db(e);
         }
 
-        // liquidation scan goes here
         serde_json::json!({ "ok": true, "marketId": market_id, "markPrice": p.to_string(), "liquidated": liquidated })
     }
 
