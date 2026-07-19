@@ -48,6 +48,10 @@ export type ToEngine =
       messageType: "mark_price_update";
       userId: string;
       price: string;
+    }
+  | {
+      messageType: "funding_tick";
+      marketId: string;
     };
 
 // order types

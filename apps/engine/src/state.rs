@@ -575,4 +575,56 @@ impl Engine {
         }
         events
     }
+
+    pub fn funding_tick(&mut self, market_id: String) -> serde_json::Value {
+        let (mark, last) = match self.orderbooks.get(&market_id) {
+            Some(b) => (b.mark_price, b.last_traded_price),
+            None => return serde_json::json!({ "ok": false, "error": "no market" }),
+        };
+        if mark <= Decimal::ZERO {
+            return serde_json::json!({ "ok": true, "rate": "0", "note": "no mark price" });
+        }
+
+        let cap = Decimal::new(75, 4);
+        /// 0.0075
+        let rate = ((last - mark) / mark).clamp(-cap, cap);
+
+        // users holding a position in this market
+        let users: Vec<String> = self
+            .positions
+            .iter()
+            .filter(|(_, ups)| ups.contains_key(&market_id))
+            .map(|(u, _)| u.clone())
+            .collect();
+
+        let mut payments = Vec::new();
+        for user in users {
+            let (side, qty) = {
+                let p = &self.positions[&user][&market_id];
+                (p.side.clone(), p.qty)
+            };
+            let notional = qty * mark;
+            let pay = rate * notional;
+            let delta = if side == "Long" { -pay } else { pay }; // long payes the rate ? 0
+
+            let bal = self.balances.entry(user.clone()).or_default();
+            bal.available += delta;
+
+            payments.push(serde_json::json!({ "userId": user, "delta": delta.to_string() }));
+        }
+
+        self.emit_pub(
+            format!("funding.{market_id}"),
+            serde_json::json!({
+                "rate": rate.to_string()
+            }),
+        );
+
+        serde_json::json!({
+            "ok": true,
+            "marketId": market_id,
+            "rate": rate.to_string(),
+            "payments": payments
+        })
+    }
 }

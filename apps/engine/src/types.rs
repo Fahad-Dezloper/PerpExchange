@@ -66,4 +66,9 @@ pub enum ToEngine {
         market_id: String,
         price: String,
     },
+
+    FundingTick {
+        #[serde(rename = "marketId")]
+        market_id: String,
+    },
 }

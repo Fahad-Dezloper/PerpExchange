@@ -22,6 +22,14 @@ async function ensureRedis() {
   }
 }
 
+async function sendFundingTick(marketId: string) {
+  await ensureRedis();
+  await redis.xAdd("to-engine", "*", {
+    requestId: "funding-test-" + rnd(),
+    payload: JSON.stringify({ messageType: "funding_tick", marketId }),
+  });
+}
+
 // pull userId out of the JWT (engine keys balances by userId)
 function decodeUserId(token: string): string {
   const payload = token.split(".")[1];
@@ -619,6 +627,36 @@ describe("snapshot persistence (phase 10)", () => {
     expect(snap.last_id).toBeTruthy(); // cursor recorded
     expect(snap.engine.balances[uid].available).toBe("1234"); // state serialized correctly
     expect(snap.engine.balances[uid].locked).toBe("0");
+  }, 30_000);
+});
+
+describe("funding rate settles between longs and shorts (phase 11)", () => {
+  it("long pays, short receives", async () => {
+    const A = await makeUser();
+    const B = await makeUser();
+    const m = await createMarket();
+    await onramp(A, "1000");
+    await onramp(B, "1000");
+
+    // A long 2@100, B short 2@100 -> both margin 40, available 960
+    await order(A, m, "long", 100, "2", "5");
+    await order(B, m, "short", 100, "2", "5");
+
+    // mark 90, last-traded 100 -> premium positive -> rate clamps to 0.0075
+    await setMarkPrice(m, "90");
+
+    // funding: notional = 2*90 = 180, payment = 0.0075*180 = 1.35
+    await sendFundingTick(m);
+
+    const ba = await waitFor(
+      () => balance(A),
+      (b) => b.available !== "960",
+      8000,
+    );
+    const bb = await balance(B);
+
+    expect(Number(ba.available)).toBeCloseTo(958.65, 2); // long paid 1.35
+    expect(Number(bb.available)).toBeCloseTo(961.35, 2); // short received 1.35
   }, 30_000);
 });
 

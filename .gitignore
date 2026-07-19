@@ -38,3 +38,5 @@ yarn-error.log*
 *.pem
 apps/engine/target
 .context
+
+apps/engine/snapshots

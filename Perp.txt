@@ -27,4 +27,9 @@ complete the last chat then do testing then move forward
 
 
 ////
+rate     = clamp((last_traded - mark) / mark, ±0.0075)
+notional = qty * mark
+payment  = rate * notional      // amount a long pays
+long:  available -= payment
+short: available += payment      // conserved between the two sides
 

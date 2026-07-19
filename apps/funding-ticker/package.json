@@ -1,0 +1,17 @@
+{
+  "name": "funding-ticker",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "commons": "workspace:*",
+    "db": "workspace:*"
+  },
+  "dependencies": {
+    "redis": "^6.1.0"
+  }
+}
