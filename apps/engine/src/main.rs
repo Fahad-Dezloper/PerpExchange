@@ -6,11 +6,13 @@ use redis::streams::{StreamReadOptions, StreamReadReply};
 use state::Engine;
 use std::collections::HashMap;
 use types::ToEngine;
+mod snapshot;
 
 const STREAM: &str = "to-engine";
 const GROUP: &str = "engine-group";
 const CONSUMER: &str = "engine_consumer";
 const REPLY_CHANNEL: &str = "engine-replies";
+const SNAPSHOT_EVERY: u64 = 20;
 
 #[tokio::main]
 async fn main() -> redis::RedisResult<()> {
@@ -29,9 +31,19 @@ async fn main() -> redis::RedisResult<()> {
         }
     }
 
+    // recovery snapshot
+    let (mut engine, start_id) = match snapshot::load() {
+        Some((e, id)) => { println!("recovered snapshot @ {id}"); (e, id) }
+        None => { println!("no snapshot, fresh start"); (Engine::new(), "0".to_string()) }
+    };
+    // resume group right after the snapshot point - replays the gap
+    let _: () = redis::cmd("XGROUP").arg("SETID").arg(STREAM).arg(GROUP).arg(&start_id)
+        .query_async(&mut consumer).await?;
+
     println!("engine running, consuming {STREAM}");
 
-    let mut engine = Engine::new(); // <-- in-memory state, lives across messages
+    // messages applied since the last snapshot
+    let mut applied: u64 = 0;
 
     let opts = StreamReadOptions::default()
         .group(GROUP, CONSUMER)
@@ -87,7 +99,15 @@ async fn main() -> redis::RedisResult<()> {
                 let _: () = publisher.publish(REPLY_CHANNEL, reply_payload).await?;
 
                 // ack
+                let entry_id = entry.id.clone();
                 let _: () = consumer.xack(STREAM, GROUP, &[entry.id]).await?;
+
+                // priodic snapshot: state + this id
+                applied += 1;
+                if applied % SNAPSHOT_EVERY == 0 {
+                    snapshot::save(&engine, &entry_id);
+                    println!("snapshot saved @ {entry_id}");
+                }
             }
         }
     }

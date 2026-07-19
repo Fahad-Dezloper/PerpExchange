@@ -58,3 +58,4 @@ bun run index.ts
 # ─────────────────────────────────────────────
 cd /Users/dezloper/Desktop/PerpExchange/apps/test
 bun run test
+bun test --timeout 30000 

@@ -1,7 +1,8 @@
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RestingOrder {
     pub order_id: String,
     pub user_id: String,
@@ -28,7 +29,7 @@ pub struct Fill {
     pub maker_leverage: u32,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Orderbook {
     pub market_id: String,
     pub bids: BTreeMap<Decimal, VecDeque<RestingOrder>>, // buyers

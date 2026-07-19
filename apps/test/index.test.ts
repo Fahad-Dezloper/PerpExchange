@@ -6,6 +6,7 @@ import { BACKEND } from "./config";
 import axios, { AxiosError } from "axios";
 import { createClient } from "redis";
 import { prisma } from "db";
+import { readFile } from "fs/promises";
 
 const ADMIN = process.env.ADMIN_SECRET!;
 const rnd = () => Math.random().toString(36).slice(2);
@@ -18,6 +19,27 @@ async function ensureRedis() {
   if (!redisReady) {
     await redis.connect();
     redisReady = true;
+  }
+}
+
+// pull userId out of the JWT (engine keys balances by userId)
+function decodeUserId(token: string): string {
+  const payload = token.split(".")[1];
+  if (!payload) throw new Error("malformed token");
+  const json = Buffer.from(payload, "base64url").toString("utf8");
+  return JSON.parse(json).userId;
+}
+
+// read the engine's snapshot file (resolved relative to this test file)
+async function readSnapshot(): Promise<any | null> {
+  try {
+    const raw = await readFile(
+      new URL("../engine/snapshots/latest.json", import.meta.url),
+      "utf8",
+    );
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 }
 
@@ -574,6 +596,29 @@ describe("poller persists to postgres (phase 8)", () => {
     );
     expect(ord).not.toBeNull();
     expect(ord!.market_id).toBe(m);
+  }, 30_000);
+});
+
+describe("snapshot persistence (phase 10)", () => {
+  it("writes engine state + last_id to the snapshot file", async () => {
+    const A = await makeUser();
+    const uid = decodeUserId(A);
+    await onramp(A, "1234");
+
+    // engine snapshots every 20 applied commands — fire enough to cross a boundary
+    for (let i = 0; i < 25; i++) await balance(A);
+
+    // poll the snapshot file until it reflects this user's balance
+    const snap = await waitFor(
+      readSnapshot,
+      (s) => s?.engine?.balances?.[uid]?.available === "1234",
+      10_000,
+    );
+
+    expect(snap).not.toBeNull();
+    expect(snap.last_id).toBeTruthy(); // cursor recorded
+    expect(snap.engine.balances[uid].available).toBe("1234"); // state serialized correctly
+    expect(snap.engine.balances[uid].locked).toBe("0");
   }, 30_000);
 });
 

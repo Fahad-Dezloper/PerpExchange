@@ -1,16 +1,17 @@
 use crate::orderbook::Orderbook;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Balance {
     pub available: Decimal,
     pub locked: Decimal,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Position {
     pub side: String, // "Long" / "Short"
     pub qty: Decimal,
@@ -20,12 +21,14 @@ pub struct Position {
     pub liquidation_price: Decimal,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Engine {
     pub balances: HashMap<String, Balance>,
     pub orderbooks: HashMap<String, Orderbook>,
     pub positions: HashMap<String, HashMap<String, Position>>,
+    #[serde(skip)]
     pub out_db: Vec<serde_json::Value>, // durable events -> to-db
+    #[serde(skip)]
     pub out_pub: Vec<(String, serde_json::Value)>, // (channel, payload) -> pubsub
 }
 
