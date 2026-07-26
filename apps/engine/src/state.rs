@@ -624,7 +624,7 @@ impl Engine {
             "ok": true,
             "marketId": market_id,
             "rate": rate.to_string(),
-            "payments": payments
+            "payments": payments,
         })
     }
 }

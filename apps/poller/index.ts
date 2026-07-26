@@ -25,27 +25,23 @@ async function ensureGroup() {
 async function handle(event: EngineEvent) {
   switch (event.type) {
     case "order_created":
-      try {
-        await prisma.order.upsert({
-          where: { id: event.orderId },
-          update: {},
-          create: {
-            id: event.orderId,
-            userId: event.userId,
-            market_id: event.marketId,
-            orderType: event.orderType,
-            side: event.side,
-            price: event.price,
-            slippage: 0,
-            qty: event.qty,
-            initialMargin: "0",
-            filledQty: "0",
-            status: event.status,
-          },
-        });
-      } catch (e) {
-        console.log("error here", e);
-      }
+      await prisma.order.upsert({
+        where: { id: event.orderId },
+        update: {},
+        create: {
+          id: event.orderId,
+          userId: event.userId,
+          market_id: event.marketId,
+          orderType: event.orderType,
+          side: event.side,
+          price: event.price,
+          slippage: 0,
+          qty: event.qty,
+          initialMargin: "0",
+          filledQty: "0",
+          status: event.status,
+        },
+      });
       break;
 
     case "order_update":
@@ -56,24 +52,20 @@ async function handle(event: EngineEvent) {
       break;
 
     case "fill":
-      try {
-        await prisma.fill.upsert({
-          where: { id: event.fillId },
-          update: {},
-          create: {
-            id: event.fillId,
-            market_id: event.marketId,
-            price: event.price,
-            qty: event.qty,
-            maker_order_id: event.makerOrderId,
-            taker_order_id: event.takerOrderId,
-            maker_id: event.makerId,
-            taker_id: event.takerId,
-          },
-        });
-      } catch (e) {
-        console.log("error here", e);
-      }
+      await prisma.fill.upsert({
+        where: { id: event.fillId },
+        update: {},
+        create: {
+          id: event.fillId,
+          market_id: event.marketId,
+          price: event.price,
+          qty: event.qty,
+          maker_order_id: event.makerOrderId,
+          taker_order_id: event.takerOrderId,
+          maker_id: event.makerId,
+          taker_id: event.takerId,
+        },
+      });
       break;
   }
 }
