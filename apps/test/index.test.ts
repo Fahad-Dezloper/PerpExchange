@@ -193,6 +193,14 @@ async function depth(marketId: string) {
   return r.data as { bids: [string, string][]; asks: [string, string][] };
 }
 
+async function applyFunding(marketId: string) {
+  await ensureRedis();
+  await redis.xAdd("to-engine", "*", {
+    requestId: "test-" + rnd(),
+    payload: JSON.stringify({ messageType: "funding", marketId }),
+  });
+}
+
 describe("auth", () => {
   it("signup rejects missing username", async () => {
     try {
@@ -630,34 +638,37 @@ describe("snapshot persistence (phase 10)", () => {
   }, 30_000);
 });
 
-describe("funding rate settles between longs and shorts (phase 11)", () => {
-  it("long pays, short receives", async () => {
+describe("funding rate transfers between longs and shorts", () => {
+  it("longs pay shorts when perp trades above index", async () => {
     const A = await makeUser();
     const B = await makeUser();
     const m = await createMarket();
     await onramp(A, "1000");
     await onramp(B, "1000");
 
-    // A long 2@100, B short 2@100 -> both margin 40, available 960
+    // trade at 100 -> last_traded 100, A long / B short
     await order(A, m, "long", 100, "2", "5");
     await order(B, m, "short", 100, "2", "5");
 
-    // mark 90, last-traded 100 -> premium positive -> rate clamps to 0.0075
+    // index (mark) below perp -> positive funding
     await setMarkPrice(m, "90");
+    await waitFor(
+      () => positions(A),
+      (p) => p[0]?.markPrice === "90",
+    );
 
-    // funding: notional = 2*90 = 180, payment = 0.0075*180 = 1.35
-    await sendFundingTick(m);
+    await applyFunding(m);
 
+    // notional = 2*90 = 180, rate = (100-90)/90 = 1/9, pay = 20
     const ba = await waitFor(
       () => balance(A),
-      (b) => b.available !== "960",
-      8000,
+      (b) => Number(b.available) !== 960,
     );
     const bb = await balance(B);
 
-    expect(Number(ba.available)).toBeCloseTo(958.65, 2); // long paid 1.35
-    expect(Number(bb.available)).toBeCloseTo(961.35, 2); // short received 1.35
-  }, 30_000);
+    expect(Number(ba.available)).toBeCloseTo(940, 1); // long paid 20
+    expect(Number(bb.available)).toBeCloseTo(980, 1); // short received 20
+  }, 20_000);
 });
 
 afterAll(async () => {

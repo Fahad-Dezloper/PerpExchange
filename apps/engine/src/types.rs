@@ -71,4 +71,9 @@ pub enum ToEngine {
         #[serde(rename = "marketId")]
         market_id: String,
     },
+
+    Funding {
+        #[serde(rename = "marketId")]
+        market_id: String,
+    },
 }

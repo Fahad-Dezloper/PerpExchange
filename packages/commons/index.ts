@@ -52,6 +52,10 @@ export type ToEngine =
   | {
       messageType: "funding_tick";
       marketId: string;
+    }
+  | {
+      messageType: "funding";
+      marketId: string;
     };
 
 // order types

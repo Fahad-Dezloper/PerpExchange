@@ -576,47 +576,46 @@ impl Engine {
         events
     }
 
-    pub fn funding_tick(&mut self, market_id: String) -> serde_json::Value {
+    pub fn apply_funding(&mut self, market_id: String) -> serde_json::Value {
         let (mark, last) = match self.orderbooks.get(&market_id) {
             Some(b) => (b.mark_price, b.last_traded_price),
             None => return serde_json::json!({ "ok": false, "error": "no market" }),
         };
+
         if mark <= Decimal::ZERO {
-            return serde_json::json!({ "ok": true, "rate": "0", "note": "no mark price" });
+            return serde_json::json!({ "ok": false, "error": "no mark price" });
         }
 
-        let cap = Decimal::new(75, 4);
-        /// 0.0075
-        let rate = ((last - mark) / mark).clamp(-cap, cap);
+        let rate = (last - mark) / mark;
 
-        // users holding a position in this market
-        let users: Vec<String> = self
-            .positions
-            .iter()
-            .filter(|(_, ups)| ups.contains_key(&market_id))
-            .map(|(u, _)| u.clone())
-            .collect();
+        // collect first - can't mutate balances while borrowing positions
+        let mut payments: Vec<(String, Decimal)> = Vec::new();
+        for (user_id, ups) in self.positions.iter() {
+            if let Some(p) = ups.get(&market_id) {
+                let notional = p.qty * mark;
+                let pay = notional * rate; // amount a long pays
+                let delta = if p.side == "Long" { -pay } else { pay };
+                payments.push((user_id.clone(), delta));
+            }
+        }
 
-        let mut payments = Vec::new();
-        for user in users {
-            let (side, qty) = {
-                let p = &self.positions[&user][&market_id];
-                (p.side.clone(), p.qty)
-            };
-            let notional = qty * mark;
-            let pay = rate * notional;
-            let delta = if side == "Long" { -pay } else { pay }; // long payes the rate ? 0
-
-            let bal = self.balances.entry(user.clone()).or_default();
-            bal.available += delta;
-
-            payments.push(serde_json::json!({ "userId": user, "delta": delta.to_string() }));
+        let mut events = Vec::new();
+        for (user_id, delta) in &payments {
+            let bal = self.balances.entry(user_id.clone()).or_default();
+            bal.available += *delta; // realized cashflow; may go negative
+            events.push(serde_json::json!({
+                "userId": user_id,
+                "marketId": market_id,
+                "delta": delta.to_string()
+            }));
         }
 
         self.emit_pub(
             format!("funding.{market_id}"),
             serde_json::json!({
-                "rate": rate.to_string()
+                "rate": rate.to_string(),
+                "markPrice": mark.to_string(),
+                "lastPrice": last.to_string()
             }),
         );
 
@@ -624,7 +623,7 @@ impl Engine {
             "ok": true,
             "marketId": market_id,
             "rate": rate.to_string(),
-            "payments": payments,
+            "payments": events
         })
     }
 }
