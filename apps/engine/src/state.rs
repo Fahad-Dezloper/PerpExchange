@@ -30,6 +30,8 @@ pub struct Engine {
     pub out_db: Vec<serde_json::Value>, // durable events -> to-db
     #[serde(skip)]
     pub out_pub: Vec<(String, serde_json::Value)>, // (channel, payload) -> pubsub
+    #[serde(skip)]
+    pub replaying: bool, // true during boot replay -> suppress side effects
 }
 
 const MMR_SCALE: (i64, u32) = (5, 3); // 0.005 maintenance margin ratio
@@ -39,10 +41,16 @@ impl Engine {
         Decimal::new(MMR_SCALE.0, MMR_SCALE.1)
     }
     fn emit_db(&mut self, e: serde_json::Value) {
+        if self.replaying {
+            return;
+        }
         self.out_db.push(e);
     }
 
     fn emit_pub(&mut self, ch: String, e: serde_json::Value) {
+        if self.replaying {
+            return;
+        }
         self.out_pub.push((ch, e));
     }
 

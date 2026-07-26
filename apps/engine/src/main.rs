@@ -1,26 +1,25 @@
 mod orderbook;
+mod snapshot;
 mod state;
 mod types;
+
+use redis::streams::{StreamRangeReply, StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
-use redis::streams::{StreamReadOptions, StreamReadReply};
 use state::Engine;
 use std::collections::HashMap;
 use types::ToEngine;
-mod snapshot;
 
 const STREAM: &str = "to-engine";
 const GROUP: &str = "engine-group";
 const CONSUMER: &str = "engine_consumer";
 const REPLY_CHANNEL: &str = "engine-replies";
-const SNAPSHOT_EVERY: u64 = 20;
+const SNAPSHOT_EVERY: u64 = 10;
 
 #[tokio::main]
 async fn main() -> redis::RedisResult<()> {
     let client = redis::Client::open("redis://127.0.0.1:6379")?;
 
-    // dedicated connection for blocking reads
     let mut consumer = client.get_multiplexed_async_connection().await?;
-    // seperate connection for replies and events
     let mut publisher = client.get_multiplexed_async_connection().await?;
 
     // create group ( ignore BUSYGROUP )
@@ -31,28 +30,49 @@ async fn main() -> redis::RedisResult<()> {
         }
     }
 
-    // recovery snapshot
-    let (mut engine, start_id) = match snapshot::load() {
-        Some((e, id)) => { println!("recovered snapshot @ {id}"); (e, id) }
-        None => { println!("no snapshot, fresh start"); (Engine::new(), "0".to_string()) }
+    // ---- RECOVER: snapshot + replay ----
+    let (mut engine, mut last_id) =
+        snapshot::load().unwrap_or_else(|| (Engine::new(), "0".to_string()));
+
+    engine.replaying = true;
+    let start = if last_id == "0" {
+        "-".to_string()
+    } else {
+        format!("({last_id}")
     };
-    // resume group right after the snapshot point - replays the gap
-    let _: () = redis::cmd("XGROUP").arg("SETID").arg(STREAM).arg(GROUP).arg(&start_id)
-        .query_async(&mut consumer).await?;
+    let replay: StreamRangeReply = consumer.xrange(STREAM, &start, "+").await?;
+    let mut replayed = 0u64;
+    for entry in &replay.ids {
+        if let Some(v) = entry.map.get("payload") {
+            if let Ok(payload) = redis::from_redis_value::<String>(v) {
+                if let Ok(msg) = serde_json::from_str::<ToEngine>(&payload) {
+                    handle(&mut engine, msg); // emits suppressed while replaying
+                    last_id = entry.id.clone();
+                    replayed += 1;
+                }
+            }
+        }
+    }
+    engine.replaying = false;
+    println!("replayed {replayed} messages, resuming at {last_id}");
 
-    println!("engine running, consuming {STREAM}");
+    let _: () = redis::cmd("XGROUP")
+        .arg("SETID")
+        .arg(STREAM)
+        .arg(GROUP)
+        .arg(&last_id)
+        .query_async(&mut consumer)
+        .await?;
 
-    // messages applied since the last snapshot
-    let mut applied: u64 = 0;
-
+    // ---- LIVE ----
     let opts = StreamReadOptions::default()
         .group(GROUP, CONSUMER)
         .block(0)
         .count(1);
+    let mut processed: u64 = 0;
 
     loop {
         let reply: StreamReadReply = consumer.xread_options(&[STREAM], &[">"], &opts).await?;
-        println!("reply here recieved {reply:?}");
 
         for key in reply.keys {
             for entry in key.ids {
@@ -67,9 +87,7 @@ async fn main() -> redis::RedisResult<()> {
                     .collect();
 
                 let request_id = fields.get("requestId").cloned().unwrap_or_default();
-                println!("request id recieved here {request_id:?}");
                 let payload = fields.get("payload").cloned().unwrap_or_default();
-                println!("payload recieved here {payload:?}");
 
                 let result = match serde_json::from_str::<ToEngine>(&payload) {
                     Ok(msg) => handle(&mut engine, msg),
@@ -83,11 +101,9 @@ async fn main() -> redis::RedisResult<()> {
                         .xadd("to-db", "*", &[("payload", e.to_string())])
                         .await?;
                 }
-                for (ch, payload) in broadcasts {
-                    let _: () = publisher.publish(ch, payload.to_string()).await?;
+                for (ch, p) in broadcasts {
+                    let _: () = publisher.publish(ch, p.to_string()).await?;
                 }
-
-                
 
                 // reply via pubsub
                 let reply_payload = serde_json::json!({
@@ -95,18 +111,18 @@ async fn main() -> redis::RedisResult<()> {
                     "payload": result
                 })
                 .to_string();
-
                 let _: () = publisher.publish(REPLY_CHANNEL, reply_payload).await?;
 
                 // ack
                 let entry_id = entry.id.clone();
                 let _: () = consumer.xack(STREAM, GROUP, &[entry.id]).await?;
+                last_id = entry_id.clone();
 
-                // priodic snapshot: state + this id
-                applied += 1;
-                if applied % SNAPSHOT_EVERY == 0 {
-                    snapshot::save(&engine, &entry_id);
-                    println!("snapshot saved @ {entry_id}");
+                // periodic snapshot: state + last processed id
+                processed += 1;
+                if processed % SNAPSHOT_EVERY == 0 {
+                    snapshot::save(&engine, &last_id);
+                    println!("snapshot saved @ {last_id}");
                 }
             }
         }
@@ -114,7 +130,6 @@ async fn main() -> redis::RedisResult<()> {
 }
 
 fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
-    println!("received: {msg:?}");
     match msg {
         ToEngine::CreateMarket { market_id } => engine.create_market(market_id),
         ToEngine::CreateOrder {
@@ -140,9 +155,10 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         ToEngine::GetPositions { user_id } => engine.get_positions(&user_id),
         ToEngine::GetDepth { market_id } => engine.get_depth(&market_id),
         ToEngine::Withdraw { user_id, amount } => engine.withdraw(user_id, amount),
-        ToEngine::MarkPriceUpdate { market_id, price } => engine.mark_price_update(market_id, price),
+        ToEngine::MarkPriceUpdate { market_id, price } => {
+            engine.mark_price_update(market_id, price)
+        }
         ToEngine::FundingTick { market_id } => engine.apply_funding(market_id),
         ToEngine::Funding { market_id } => engine.apply_funding(market_id),
-        _ => serde_json::json!({"ok": true, "note": "note implemented"}),
     }
 }
