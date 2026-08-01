@@ -12,26 +12,29 @@ export default function OrderBook({ mid, dp }: { mid: number; dp: number }) {
     return () => clearInterval(id);
   }, [mid]);
 
+  // show only the best 10 levels nearest the spread on each side
+  const asks = book.asks.slice(-12); // furthest -> best (best sits by the spread)
+  const bids = book.bids.slice(0, 12); // best -> furthest
+
   const maxTotal = useMemo(
-    () => Math.max(...book.asks.map((l) => l.total), ...book.bids.map((l) => l.total), 1),
-    [book],
+    () => Math.max(...asks.map((l) => l.total), ...bids.map((l) => l.total), 1),
+    [asks, bids],
   );
+
+  const bestAsk = asks[asks.length - 1]?.price ?? mid;
+  const bestBid = bids[0]?.price ?? mid;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-3 py-2 text-xs text-muted">
-        <span className="font-medium text-fg">Order Book</span>
-        <span>Size</span>
-      </div>
-      <div className="grid grid-cols-3 px-3 pb-1 text-[11px] text-muted">
+      <div className="grid grid-cols-3 px-3 pt-2 pb-1 text-[11px] text-muted">
         <span>Price</span>
         <span className="text-right">Size</span>
         <span className="text-right">Total</span>
       </div>
 
-      {/* asks */}
+      {/* asks (top 10) */}
       <div className="flex flex-col-reverse">
-        {book.asks.map((l, i) => (
+        {asks.map((l, i) => (
           <Row key={"a" + i} l={l} dp={dp} tone="short" pct={(l.total / maxTotal) * 100} />
         ))}
       </div>
@@ -39,12 +42,12 @@ export default function OrderBook({ mid, dp }: { mid: number; dp: number }) {
       {/* spread */}
       <div className="tnum my-1 flex items-center justify-between border-y border-border px-3 py-1.5 text-sm">
         <span className="font-semibold">{fmtNum(mid, dp)}</span>
-        <span className="text-[11px] text-muted">spread {fmtNum(book.asks[book.asks.length - 1].price - book.bids[0].price, dp)}</span>
+        <span className="text-[11px] text-muted">spread {fmtNum(bestAsk - bestBid, dp)}</span>
       </div>
 
-      {/* bids */}
+      {/* bids (top 10) */}
       <div className="flex flex-col">
-        {book.bids.map((l, i) => (
+        {bids.map((l, i) => (
           <Row key={"b" + i} l={l} dp={dp} tone="long" pct={(l.total / maxTotal) * 100} />
         ))}
       </div>

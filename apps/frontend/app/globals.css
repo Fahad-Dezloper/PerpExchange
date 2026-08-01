@@ -70,3 +70,11 @@ body {
   font-family: var(--font-mono);
   letter-spacing: 0;
 }
+
+.scrolll {
+  overflow-x: auto;
+}
+.scrolll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
