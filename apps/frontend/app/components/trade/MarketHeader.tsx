@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { marketBySymbol, MARKETS, fmtNum, priceDp } from "../../../lib/mock";
+import { useRouter } from "next/navigation";
+import { marketBySymbol, MARKETS, fmtNum, fmtCompact, priceDp } from "../../../lib/mock";
 import TokenIcon from "../TokenIcon";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, Star, X } from "lucide-react";
 
 export default function MarketHeader({
   symbol,
@@ -56,23 +56,27 @@ export default function MarketHeader({
   const scrollBy = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   return (
-    <div className="relative border-b border-border bg-panel">
-      {!atStart && (
-        <button
-          onClick={() => scrollBy(-280)}
-          className="absolute left-0 top-0 z-10 flex h-full w-42 items-center justify-start bg-linear-to-r from-panel to-transparent pl-1"
-        >
-          <ChevronLeft className="h-8 w-8 text-muted" />
-        </button>
-      )}
-
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-6 overflow-x-auto px-4 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
+    <div className="flex items-stretch border-b border-border bg-panel">
+      {/* switcher lives OUTSIDE the scroll container so its dropdown isn't clipped */}
+      <div className="flex shrink-0 items-center pl-4 pr-2">
         <MarketSwitcher symbol={symbol} leverage={market.maxLeverage} />
+      </div>
 
-      <div className="h-9 w-px shrink-0 bg-border" />
+      <div className="relative min-w-0 flex-1">
+        {!atStart && (
+          <button
+            onClick={() => scrollBy(-280)}
+            className="absolute left-0 top-0 z-10 flex h-full w-16 items-center justify-start bg-linear-to-r from-panel to-transparent pl-1"
+          >
+            <ChevronLeft className="h-6 w-6 text-muted" />
+          </button>
+        )}
+
+        <div
+          ref={scrollRef}
+          className="flex items-center gap-6 overflow-x-auto py-2.5 pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="h-9 w-px shrink-0 bg-border" />
 
       {/* last / mark price */}
       <div className="shrink-0">
@@ -94,26 +98,58 @@ export default function MarketHeader({
       <HeaderStat label="24H Low">{fmtNum(low, dp)}</HeaderStat>
       <HeaderStat label="24H Volume (USD)">{fmtNum(market.volume24h, 2)}</HeaderStat>
       <HeaderStat label={`Open Interest (${base})`}>{fmtNum(oiBase, 5)}</HeaderStat>
-      <HeaderStat label="Profit APY" tone="long">
-        <span className="inline-flex items-center gap-1">{profitApy.toFixed(2)}% ⚡</span>
-      </HeaderStat>
-      </div>
+        <HeaderStat label="Profit APY" tone="long">
+          <span className="inline-flex items-center gap-1">{profitApy.toFixed(2)}% ⚡</span>
+        </HeaderStat>
+        </div>
 
-      {!atEnd && (
-        <button
-          onClick={() => scrollBy(280)}
-          className="absolute right-0 top-0 z-10 flex h-full w-42 items-center justify-end bg-linear-to-l from-panel to-transparent pr-1"
-        >
-          <ChevronRight className="h-8 w-8 text-muted" />
-        </button>
-      )}
+        {!atEnd && (
+          <button
+            onClick={() => scrollBy(280)}
+            className="absolute right-0 top-0 z-10 flex h-full w-16 items-center justify-end bg-linear-to-l from-panel to-transparent pr-1"
+          >
+            <ChevronRight className="h-6 w-6 text-muted" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
+const CATEGORIES = ["Futures"] as const;
+
 function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number }) {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
   const m = marketBySymbol(symbol);
+  const base = m.symbol.split("-")[0];
+
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("Futures");
+  const [q, setQ] = useState("");
+  const [favs, setFavs] = useState<Set<string>>(new Set(["BTC-PERP", "ETH-PERP"]));
+
+  // only Futures has data in our mock
+  const rows = (cat === "Futures" ? [...MARKETS] : [])
+    .filter(
+      (mk) =>
+        mk.symbol.toLowerCase().includes(q.toLowerCase()) || mk.name.toLowerCase().includes(q.toLowerCase()),
+    )
+    .sort((a, b) => b.volume24h - a.volume24h);
+
+  const toggleFav = (e: React.MouseEvent, sym: string) => {
+    e.stopPropagation();
+    setFavs((prev) => {
+      const next = new Set(prev);
+      next.has(sym) ? next.delete(sym) : next.add(sym);
+      return next;
+    });
+  };
+
+  const go = (sym: string) => {
+    router.push(`/trade/${sym}`);
+    setOpen(false);
+  };
+
   return (
     <div className="relative shrink-0">
       <button
@@ -121,31 +157,118 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
         className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-panel-2"
       >
         <TokenIcon symbol={m.symbol} size={28} />
-        <span className="text-base font-semibold">{m.symbol}</span>
+        <span className="text-base font-semibold">{base}-PERP</span>
         <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">{leverage}x</span>
-        <span className="text-xl text-muted">
-          <ChevronDown />
-        </span>
+        <ChevronDown className={`h-5 w-5 text-muted transition ${open ? "rotate-180" : ""}`} />
       </button>
+
       {open && (
-        <div className="absolute left-0 top-11 z-20 w-56 rounded-lg border border-border bg-panel p-1 shadow-xl">
-          {MARKETS.map((mk) => (
-            <Link
-              key={mk.symbol}
-              href={`/trade/${mk.symbol}`}
-              onClick={() => setOpen(false)}
-              className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-panel-2"
-            >
-              <span className="flex items-center gap-2">
-                <TokenIcon symbol={mk.symbol} size={20} />
-                {mk.symbol}
-              </span>
-              <span className={`tnum text-xs ${mk.change24h >= 0 ? "text-long" : "text-short"}`}>
-                {mk.change24h >= 0 ? "+" : ""}{mk.change24h.toFixed(2)}%
-              </span>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-30 mt-2 w-[440px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-panel shadow-2xl">
+            {/* category tabs */}
+            <div className="flex items-center gap-1 border-b border-border px-2 py-2">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+                    cat === c ? "bg-panel-2 text-fg" : "text-muted hover:text-fg"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+              <button className="ml-1 rounded-md p-1.5 text-muted hover:text-warn">
+                <Star className="h-4 w-4" />
+              </button>
+              <button onClick={() => setOpen(false)} className="ml-auto rounded-md p-1.5 text-muted hover:text-fg">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* search */}
+            <div className="p-2">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-2 focus-within:border-accent">
+                <Search className="h-4 w-4 text-muted" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search markets"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted"
+                />
+              </div>
+            </div>
+
+            {/* column header */}
+            <div className="grid grid-cols-[1.6fr_1fr_1fr_auto] gap-2 px-3 py-1.5 text-[11px] text-muted">
+              <span>Market / Volume</span>
+              <span className="text-right">Price / Change</span>
+              <span className="text-right">Funding / OI</span>
+              <span className="w-6" />
+            </div>
+
+            {/* rows */}
+            <div className="max-h-[440px] overflow-y-auto pb-1">
+              {rows.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted">
+                  {cat === "Futures" ? "No markets found" : `${cat} coming soon`}
+                </div>
+              ) : (
+                rows.map((mk) => {
+                  const up = mk.change24h >= 0;
+                  const b = mk.symbol.split("-")[0];
+                  const active = mk.symbol === symbol;
+                  const fav = favs.has(mk.symbol);
+                  return (
+                    <div
+                      key={mk.symbol}
+                      onClick={() => go(mk.symbol)}
+                      className={`grid cursor-pointer grid-cols-[1.6fr_1fr_1fr_auto] items-center gap-2 px-3 py-2 transition hover:bg-panel-2 ${
+                        active ? "bg-panel-2" : ""
+                      }`}
+                    >
+                      {/* market / volume */}
+                      <div className="flex min-w-0 items-center gap-2">
+                        <TokenIcon symbol={mk.symbol} size={28} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-[13px] font-medium">{b}-PERP</span>
+                            <span className="rounded bg-accent/15 px-1 py-0.5 text-[9px] font-semibold text-accent">
+                              {mk.maxLeverage}x
+                            </span>
+                          </div>
+                          <div className="tnum text-[11px] text-muted">${fmtCompact(mk.volume24h)}</div>
+                        </div>
+                      </div>
+
+                      {/* price / change */}
+                      <div className="text-right">
+                        <div className="tnum text-[13px]">{fmtNum(mk.price, priceDp(mk.price))}</div>
+                        <div className={`tnum text-[11px] ${up ? "text-long" : "text-short"}`}>
+                          {up ? "+" : ""}{mk.change24h.toFixed(2)}%
+                        </div>
+                      </div>
+
+                      {/* funding / OI */}
+                      <div className="text-right">
+                        <div className={`tnum text-[13px] ${mk.funding >= 0 ? "text-fg" : "text-short"}`}>
+                          {(mk.funding * 100).toFixed(4)}%
+                        </div>
+                        <div className="tnum text-[11px] text-muted">${fmtCompact(mk.openInterest)}</div>
+                      </div>
+
+                      {/* favorite */}
+                      <button onClick={(e) => toggleFav(e, mk.symbol)} className="p-1">
+                        <Star className={`h-4 w-4 ${fav ? "fill-accent text-accent" : "text-muted hover:text-fg"}`} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
