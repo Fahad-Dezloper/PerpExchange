@@ -33,3 +33,8 @@ payment  = rate * notional      // amount a long pays
 long:  available -= payment
 short: available += payment      // conserved between the two sides
 
+
+///
+Complete Frontend ui and ux wise connect with backend
+understand so far architecture and bugs and micro level things like ram thread sharing and all
+

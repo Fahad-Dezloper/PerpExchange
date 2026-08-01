@@ -80,7 +80,7 @@ export default function DepositModal({ open, onClose }: { open: boolean; onClose
         <button
           onClick={submit}
           disabled={busy || !Number(amount)}
-          className="mt-4 w-full rounded-lg bg-fg py-2.5 text-[13px] font-semibold text-bg transition hover:opacity-90 disabled:opacity-40"
+          className="btn-primary mt-4 w-full rounded-lg py-2.5 text-[13px] font-semibold transition disabled:opacity-40"
         >
           {busy ? "Processing…" : tab === "deposit" ? "Deposit" : "Withdraw"}
         </button>

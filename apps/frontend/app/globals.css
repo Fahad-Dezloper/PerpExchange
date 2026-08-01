@@ -1,20 +1,33 @@
 @import "tailwindcss";
 
-/* Backpack-inspired dark system: neutral near-black, soft-green accent,
-   monochrome surfaces, green(long)/red(short) directional. */
+/* Design system:
+   primary bg #222222 · secondary bg #141414 · text #fff / #797979
+   primary button = blue gradient #0b9deb -> #6ecafd */
 @theme {
-  --color-bg: #0b0c0e;
-  --color-panel: #101113;
-  --color-panel-2: #16181b;
-  --color-border: #202226;
-  --color-border-soft: #191b1e;
-  --color-fg: #eceef1;
-  --color-muted: #808591;
-  --color-subtle: #5d606f;
+  --color-bg: #101010;        /* primary background */
+  --color-panel: #141414;     /* secondary background (cards, nav, insets) */
+  --color-panel-2: #1c1c1c;   /* nested / hover */
+  --color-border: #323232;
+  --color-border-soft: #2a2a2a;
+  --color-fg: #ffffff;        /* primary text */
+  --color-muted: #797979;     /* secondary text */
+  --color-subtle: #5f5f5f;
   --color-long: #00c278;
   --color-short: #fd4b4e;
-  --color-accent: #00c278;
+  --color-accent: #0b9deb;
   --color-warn: #f0b90e;
+
+  /* ── design-system aliases (usable directly in Tailwind) ──
+     bg-primary        #101010  primary background
+     bg-secondary      #141414  secondary background
+     text-content      #ffffff  primary font
+     text-content-muted #797979 secondary font
+     bg-brand/text-brand #0b9deb primary button base (gradient = .btn-primary) */
+  --color-primary: #222222;
+  --color-secondary: #141414;
+  --color-content: #ffffff;
+  --color-content-muted: #797979;
+  --color-brand: #0b9deb;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
@@ -31,12 +44,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* primary button: blue gradient */
+.btn-primary {
+  background-image: linear-gradient(90deg, #0b9deb 0%, #6ecafd 100%);
+  color: #fff;
+}
+.btn-primary:hover {
+  opacity: 0.92;
+}
+
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #24272c;
+  background: #3a3a3a;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-track {

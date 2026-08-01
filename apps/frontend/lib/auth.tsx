@@ -1,8 +1,5 @@
 "use client";
 
-// Auth/session seam. Token persisted in localStorage, sent as the
-// `token` header by lib/api.ts. Wrap the app in <AuthProvider>.
-
 import { createContext, useContext, useEffect, useState } from "react";
 import * as api from "./api";
 

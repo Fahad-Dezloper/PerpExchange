@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth";
 
-// Wired to lib/auth (mock-backed via lib/api). Real calls flip on
-// when api.USE_MOCK = false.
+
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const { login, signup, loading } = useAuth();
@@ -62,7 +61,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <button
             type="submit"
             disabled={loading || !username || !password}
-            className="w-full rounded-lg bg-fg py-2.5 text-sm font-semibold text-bg transition hover:opacity-90 disabled:opacity-40"
+            className="btn-primary w-full rounded-lg py-2.5 text-sm font-semibold transition disabled:opacity-40"
           >
             {loading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
           </button>

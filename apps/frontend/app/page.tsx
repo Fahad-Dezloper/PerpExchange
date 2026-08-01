@@ -1,90 +1,111 @@
 import Link from "next/link";
-import { MARKETS, fmtUsd, priceDp } from "../lib/mock";
+import { MARKETS, makeCandles, fmtUsd, priceDp, type Market } from "../lib/mock";
+import TokenIcon from "./components/TokenIcon";
+import MarketRow from "./components/MarketRow";
+
+// keep identical to COLS in components/MarketRow.tsx
+const HEADER_COLS =
+  "grid items-center gap-x-4 px-5 grid-cols-[1.6fr_1fr_1fr] md:grid-cols-[2.1fr_1fr_1fr_1fr_1fr_1.3fr]";
 
 export default function MarketsPage() {
-  const totalVol = MARKETS.reduce((s, m) => s + m.volume24h, 0);
-  const totalOi = MARKETS.reduce((s, m) => s + m.openInterest, 0);
+  const movers = [...MARKETS].sort((a, b) => b.change24h - a.change24h);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      {/* hero */}
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Perpetual Markets</h1>
-          <p className="mt-1 text-sm text-muted">Trade with up to 50× leverage. Deep liquidity, low fees.</p>
-        </div>
-        <div className="flex gap-6">
-          <Stat label="24h Volume" value={fmtUsd(totalVol, 0)} />
-          <Stat label="Open Interest" value={fmtUsd(totalOi, 0)} />
-          <Stat label="Markets" value={String(MARKETS.length)} />
+      {/* featured / movers cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <MoverCard m={movers[0]} />
+        <MoverCard m={movers[movers.length - 1]} />
+        <MoverCard m={[...MARKETS].sort((a, b) => b.volume24h - a.volume24h)[0]} />
+      </div>
+
+      {/* markets list */}
+      <div className="mt-4">
+        <div className="overflow-hidden rounded-2xl border border-border bg-panel">
+          {/* header */}
+          <div className={`${HEADER_COLS} border-b border-border-soft py-3 text-sm font-medium tracking-wide text-muted`}>
+            <span>Market</span>
+            <span className="text-right">Price</span>
+            <span className="text-right">24h</span>
+            <span className="hidden text-right md:block">Volume</span>
+            <span className="hidden text-right md:block">Funding</span>
+            <span className="hidden text-right md:block">Last 7 Days</span>
+          </div>
+
+          {/* rows */}
+          <div className="divide-y divide-border-soft">
+            {MARKETS.map((m) => (
+              <MarketRow key={m.symbol} m={m} />
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* table */}
-      <div className="overflow-hidden rounded-xl border border-border bg-panel">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted">
-              <th className="px-4 py-3 font-medium">Market</th>
-              <th className="px-4 py-3 text-right font-medium">Price</th>
-              <th className="px-4 py-3 text-right font-medium">24h</th>
-              <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">24h Volume</th>
-              <th className="hidden px-4 py-3 text-right font-medium md:table-cell">Open Interest</th>
-              <th className="hidden px-4 py-3 text-right font-medium md:table-cell">Funding</th>
-              <th className="px-4 py-3 text-right font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {MARKETS.map((m) => {
-              const up = m.change24h >= 0;
-              return (
-                <tr key={m.symbol} className="group border-b border-border/60 transition hover:bg-panel-2">
-                  <td className="px-4 py-3.5">
-                    <Link href={`/trade/${m.symbol}`} className="flex items-center gap-3">
-                      <div className="grid h-8 w-8 place-items-center rounded-full bg-panel-2 text-xs font-semibold text-muted">
-                        {m.symbol.slice(0, 2)}
-                      </div>
-                      <div>
-                        <div className="font-medium">{m.symbol}</div>
-                        <div className="text-xs text-muted">{m.name}</div>
-                      </div>
-                    </Link>
-                  </td>
-                  <td className="tnum px-4 py-3.5 text-right">{fmtUsd(m.price, priceDp(m.price))}</td>
-                  <td className={`tnum px-4 py-3.5 text-right ${up ? "text-long" : "text-short"}`}>
-                    {up ? "+" : ""}{m.change24h.toFixed(2)}%
-                  </td>
-                  <td className="tnum hidden px-4 py-3.5 text-right text-muted sm:table-cell">{fmtUsd(m.volume24h, 0)}</td>
-                  <td className="tnum hidden px-4 py-3.5 text-right text-muted md:table-cell">{fmtUsd(m.openInterest, 0)}</td>
-                  <td className={`tnum hidden px-4 py-3.5 text-right md:table-cell ${m.funding >= 0 ? "text-long" : "text-short"}`}>
-                    {(m.funding * 100).toFixed(4)}%
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <Link
-                      href={`/trade/${m.symbol}`}
-                      className="rounded-md border border-border px-3 py-1.5 text-xs text-muted opacity-0 transition group-hover:opacity-100 hover:text-fg"
-                    >
-                      Trade
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-xs text-muted">
+      <p className="mt-3 px-1 text-xs text-subtle">
         Mock data — wire to <code className="text-accent">GET /api/v1/markets</code> + ws <code className="text-accent">ticker.&lt;symbol&gt;</code>.
       </p>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function MoverCard({ m }: { m: Market }) {
+  const up = m.change24h >= 0;
+  const base = m.symbol.split("-")[0];
   return (
-    <div>
-      <div className="text-xs text-muted">{label}</div>
-      <div className="tnum mt-0.5 text-lg font-semibold">{value}</div>
-    </div>
+    <Link
+      href={`/trade/${m.symbol}`}
+      className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-panel p-5 transition hover:border-border-soft hover:bg-panel-2"
+    >
+      <div className="flex items-center gap-2.5">
+        <TokenIcon symbol={m.symbol} size={28} />
+        <span className="text-lg font-semibold tracking-tight">{m.name}</span>
+        <span className="text-sm text-muted">{base}</span>
+      </div>
+
+      <div className="tnum text-3xl font-semibold tracking-tight">{fmtUsd(m.price, priceDp(m.price))}</div>
+
+      <div>
+        <span
+          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium ${
+            up ? "bg-long/12 text-long" : "bg-short/12 text-short"
+          }`}
+        >
+          <span className="text-xs">{up ? "↗" : "↘"}</span>
+          {up ? "+" : ""}{m.change24h.toFixed(2)}%
+        </span>
+      </div>
+
+      <AreaSparkline mid={m.price} up={up} id={m.symbol} />
+    </Link>
+  );
+}
+
+// filled area chart with a dashed baseline (server-safe, deterministic)
+function AreaSparkline({ mid, up, id }: { mid: number; up: boolean; id: string }) {
+  const closes = makeCandles(mid, 44).map((c) => c.c);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = max - min || 1;
+  const W = 300, H = 84, pad = 6;
+  const x = (i: number) => (i / (closes.length - 1)) * W;
+  const y = (v: number) => H - pad - ((v - min) / range) * (H - pad * 2);
+
+  const line = closes.map((c, i) => `${x(i).toFixed(1)},${y(c).toFixed(1)}`).join(" ");
+  const area = `M0,${H} L${line.replaceAll(" ", " L")} L${W},${H} Z`;
+  const color = up ? "var(--color-long)" : "var(--color-short)";
+  const baseY = y(closes[0]);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-20 w-full">
+      <defs>
+        <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <line x1="0" x2={W} y1={baseY} y2={baseY} stroke="#4a4a4a" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+      <path d={area} fill={`url(#spark-${id})`} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }

@@ -16,6 +16,7 @@ import OrderBook from "./OrderBook";
 import TradesTape from "./TradesTape";
 import PriceChart from "./PriceChart";
 import OrderForm from "./OrderForm";
+import TokenIcon from "../TokenIcon";
 
 export default function TradeView({ symbol }: { symbol: string }) {
   const market = marketBySymbol(symbol);
@@ -90,9 +91,7 @@ function MarketSwitcher({ symbol }: { symbol: string }) {
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-panel-2"
       >
-        <div className="grid h-7 w-7 place-items-center rounded-full bg-panel-2 text-[11px] font-semibold text-muted">
-          {m.symbol.slice(0, 2)}
-        </div>
+        <TokenIcon symbol={m.symbol} size={28} />
         <span className="text-base font-semibold">{m.symbol}</span>
         <span className="text-muted">▾</span>
       </button>
@@ -105,7 +104,10 @@ function MarketSwitcher({ symbol }: { symbol: string }) {
               onClick={() => setOpen(false)}
               className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-panel-2"
             >
-              <span>{mk.symbol}</span>
+              <span className="flex items-center gap-2">
+                <TokenIcon symbol={mk.symbol} size={20} />
+                {mk.symbol}
+              </span>
               <span className={`tnum text-xs ${mk.change24h >= 0 ? "text-long" : "text-short"}`}>
                 {mk.change24h >= 0 ? "+" : ""}{mk.change24h.toFixed(2)}%
               </span>
