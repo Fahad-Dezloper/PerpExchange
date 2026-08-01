@@ -78,3 +78,11 @@ body {
   display: none;
   width: 0;
 }
+
+.scrollly {
+  overflow-y: auto;
+}
+.scrollly::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}

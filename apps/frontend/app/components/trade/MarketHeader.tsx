@@ -154,11 +154,13 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-panel-2"
+        className={`flex items-center gap-12.5 rounded-md px-1 py-1 hover:bg-panel-2 ${open && "bg-panel-2"}`}
       >
+        <div className="flex gap-2 items-center">
         <TokenIcon symbol={m.symbol} size={28} />
         <span className="text-base font-semibold">{base}-PERP</span>
         <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">{leverage}x</span>
+        </div>
         <ChevronDown className={`h-5 w-5 text-muted transition ${open ? "rotate-180" : ""}`} />
       </button>
 

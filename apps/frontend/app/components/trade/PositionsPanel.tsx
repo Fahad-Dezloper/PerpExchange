@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { POSITIONS, OPEN_ORDERS, fmtUsd, fmtNum } from "../../../lib/mock";
+import { DeleteIcon, Trash2 } from "lucide-react";
 
 const PANEL_TABS = [
   "Positions",
@@ -14,12 +15,12 @@ const PANEL_TABS = [
 type PanelTab = (typeof PANEL_TABS)[number];
 
 // REAL: positions via ws position.<userId>; orders via GET /api/v1/orders
-export default function PositionsPanel() {
-  const [tab, setTab] = useState<PanelTab>("Positions");
+export default function PositionsPanel({ tabs = PANEL_TABS }: { tabs?: readonly PanelTab[] }) {
+  const [tab, setTab] = useState<PanelTab>(tabs[0]);
   return (
     <div className="border-t border-border bg-panel">
       <div className="flex items-center gap-4 overflow-x-auto border-b border-border px-4 pt-2 text-[13px]">
-        {PANEL_TABS.map((t) => {
+        {tabs.map((t) => {
           const count = t === "Positions" ? POSITIONS.length : t === "Open Orders" ? OPEN_ORDERS.length : null;
           return (
             <Tab key={t} active={tab === t} onClick={() => setTab(t)}>
@@ -42,9 +43,9 @@ export default function PositionsPanel() {
             <tbody>
               {POSITIONS.map((p) => (
                 <tr key={p.symbol} className="border-t border-border/60">
-                  <td className="px-4 py-3 font-medium">{p.symbol}</td>
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">{p.symbol}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded px-1.5 py-0.5 text-xs ${p.side === "Long" ? "bg-long/15 text-long" : "bg-short/15 text-short"}`}>
+                    <span className={`rounded px-1.5 whitespace-nowrap py-0.5 text-xs ${p.side === "Long" ? "bg-long/15 text-long" : "bg-short/15 text-short"}`}>
                       {p.side} {p.leverage}×
                     </span>
                   </td>
@@ -56,8 +57,10 @@ export default function PositionsPanel() {
                   <td className={`tnum px-4 py-3 ${p.pnl >= 0 ? "text-long" : "text-short"}`}>
                     {p.pnl >= 0 ? "+" : ""}{fmtUsd(p.pnl)} ({p.pnl >= 0 ? "+" : ""}{p.pnlPct.toFixed(1)}%)
                   </td>
-                  <td className="px-4 py-3">
-                    <button className="rounded border border-border px-2 py-1 text-xs text-muted hover:text-short">Close</button>
+                  <td className="px-4 py-3 cursor-pointer group">
+                    <button className="rounded-sm p-1  text-xs text-white bg-short/40 group-hover:bg-short">
+                      <Trash2 size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}

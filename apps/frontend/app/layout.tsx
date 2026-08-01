@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-bg text-fg">
+      <body className="flex min-h-full scrollly flex-col bg-bg text-fg">
         <AuthProvider>
           {/* <Nav /> */}
           <main className="flex-1">{children}</main>
