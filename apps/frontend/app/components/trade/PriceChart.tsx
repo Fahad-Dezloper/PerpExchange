@@ -1,63 +1,112 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  createChart,
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  type IChartApi,
+  type ISeriesApi,
+  type CandlestickData,
+  type UTCTimestamp,
+} from "lightweight-charts";
 import { makeCandles, fmtNum } from "../../../lib/mock";
 
-// Lightweight SVG candlestick chart on mock candles.
-// REAL: swap for TradingView `lightweight-charts` fed by GET /api/v1/klines + ws trade.<symbol>.
-export default function PriceChart({ mid, live, dp }: { mid: number; live: number; dp: number }) {
-  const candles = useMemo(() => {
-    const c = makeCandles(mid, 64);
-    // pin the last close to the live price so the chart tracks the header
-    c[c.length - 1] = { ...c[c.length - 1], c: live, h: Math.max(c[c.length - 1].h, live), l: Math.min(c[c.length - 1].l, live) };
-    return c;
-  }, [mid, live]);
+const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
 
-  const W = 800, H = 320, padY = 16;
-  const highs = candles.map((c) => c.h);
-  const lows = candles.map((c) => c.l);
-  const max = Math.max(...highs), min = Math.min(...lows);
-  const range = max - min || 1;
-  const cw = W / candles.length;
-  const y = (v: number) => padY + (1 - (v - min) / range) * (H - padY * 2);
+// TradingView lightweight-charts (v5) candlestick chart.
+// REAL: feed setData() from GET /api/v1/klines, then series.update() on ws trade.<symbol>.
+export default function PriceChart({ mid, live, dp }: { mid: number; live: number; dp: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastBarRef = useRef<CandlestickData | null>(null);
+  const [tf, setTf] = useState<(typeof TIMEFRAMES)[number]>("5m");
+
+  // build chart once per market (mid) / precision (dp)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const chart: IChartApi = createChart(el, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#797979",
+        fontFamily: "inherit",
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: "#1c1c1c" },
+        horzLines: { color: "#1c1c1c" },
+      },
+      rightPriceScale: { borderColor: "#2a2a2a" },
+      timeScale: { borderColor: "#2a2a2a", timeVisible: true, secondsVisible: false },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: "#00c278",
+      downColor: "#fd4b4e",
+      wickUpColor: "#00c278",
+      wickDownColor: "#fd4b4e",
+      borderVisible: false,
+      priceFormat: { type: "price", precision: dp, minMove: Math.pow(10, -dp) },
+    });
+
+    // seed candles (deterministic mock)
+    const raw = makeCandles(mid, 120);
+    const now = Math.floor(Date.now() / 1000);
+    const step = 60; // 1m bars
+    const data: CandlestickData[] = raw.map((c, i) => ({
+      time: (now - (raw.length - 1 - i) * step) as UTCTimestamp,
+      open: c.o,
+      high: c.h,
+      low: c.l,
+      close: c.c,
+    }));
+
+    series.setData(data);
+    chart.timeScale().fitContent();
+
+    seriesRef.current = series;
+    lastBarRef.current = data[data.length - 1];
+
+    return () => chart.remove();
+  }, [mid, dp]);
+
+  // stream the live price into the last candle
+  useEffect(() => {
+    const series = seriesRef.current;
+    const last = lastBarRef.current;
+    if (!series || !last) return;
+    const updated: CandlestickData = {
+      ...last,
+      close: live,
+      high: Math.max(last.high, live),
+      low: Math.min(last.low, live),
+    };
+    series.update(updated);
+    lastBarRef.current = updated;
+  }, [live]);
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
-        {["1m", "5m", "15m", "1h", "4h", "1D"].map((tf, i) => (
-          <button key={tf} className={`rounded px-2 py-0.5 ${i === 1 ? "bg-panel-2 text-fg" : "hover:text-fg"}`}>
-            {tf}
+      <div className="flex items-center gap-1 border-b border-border px-3 py-2 text-xs text-muted">
+        {TIMEFRAMES.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTf(t)}
+            className={`rounded px-2 py-0.5 transition ${tf === t ? "bg-panel-2 text-fg" : "hover:text-fg"}`}
+          >
+            {t}
           </button>
         ))}
-        <span className="ml-auto tnum text-fg">{fmtNum(live, dp)}</span>
+        <span className="tnum ml-auto text-fg">{fmtNum(live, dp)}</span>
       </div>
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-[320px] w-full" preserveAspectRatio="none">
-          {/* grid */}
-          {[0.2, 0.4, 0.6, 0.8].map((g) => (
-            <line key={g} x1="0" x2={W} y1={padY + g * (H - padY * 2)} y2={padY + g * (H - padY * 2)} stroke="#1b2130" strokeWidth="1" />
-          ))}
-          {candles.map((c, i) => {
-            const x = i * cw + cw / 2;
-            const upC = c.c >= c.o;
-            const col = upC ? "#0ecb81" : "#f6465d";
-            return (
-              <g key={i}>
-                <line x1={x} x2={x} y1={y(c.h)} y2={y(c.l)} stroke={col} strokeWidth="1" />
-                <rect
-                  x={i * cw + cw * 0.2}
-                  width={cw * 0.6}
-                  y={y(Math.max(c.o, c.c))}
-                  height={Math.max(1, Math.abs(y(c.o) - y(c.c)))}
-                  fill={col}
-                />
-              </g>
-            );
-          })}
-          {/* last price line */}
-          <line x1="0" x2={W} y1={y(live)} y2={y(live)} stroke="#5b8cff" strokeWidth="1" strokeDasharray="4 4" opacity="0.7" />
-        </svg>
-      </div>
+
+      {/* lightweight-charts mounts its canvas here */}
+      <div ref={containerRef} className="h-[360px] w-full" />
     </div>
   );
 }
