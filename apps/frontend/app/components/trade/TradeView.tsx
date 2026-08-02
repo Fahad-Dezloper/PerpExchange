@@ -29,27 +29,23 @@ export default function TradeView({ symbol }: { symbol: string }) {
   }, [market.symbol, market.price, dp]);
 
   return (
-    <div className="flex flex-col">
-      {/* <MarketHeader symbol={symbol} price={price} dir={dir} /> */}
-
-      {/* orderbook | chart + trades | order form 260px_1fr_320px */}
-      <div className="grid grid-cols-1 gap-px bg-border lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col">
+    <div className="flex flex-col gap-2 p-2">
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-2">
           <MarketHeader symbol={symbol} price={price} dir={dir} />
-          <div className="grid min-w-0 grid-cols-[260px_minmax(0,1fr)]">
-            <div className="min-w-0">
-              <BookTrades mid={price} dp={dp} />
-            </div>
-
+          <div className="grid min-w-0 grid-cols-[260px_minmax(0,1fr)] gap-2">
+            <BookTrades mid={price} dp={dp} />
             <ChartTrades mid={market.price} live={price} dp={dp} />
           </div>
         </div>
-        <div className="bg-bg">
-          <OrderForm symbol={symbol} price={price} dp={dp} maxLeverage={market.maxLeverage} />
-        </div>
+
+        <OrderForm symbol={symbol} price={price} dp={dp} maxLeverage={market.maxLeverage} />
       </div>
 
-      <PositionsPanel />
+      {/* full account panel — starts on a tab the compact panel doesn't show */}
+      <div className="rounded-sm border border-border bg-panel">
+        <PositionsPanel defaultTab="Fill History" />
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowUpDown, ChevronDown, Settings2 } from "lucide-react";
 import { BALANCE, fmtUsd } from "../../../lib/mock";
+import Button from "../ui/Button";
 
 const QUOTE = "USDT";
 
@@ -61,7 +62,7 @@ export default function OrderForm({
   if (marks[marks.length - 1] !== maxLeverage) marks.push(maxLeverage);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-3">
+    <div className="flex h-full flex-col gap-3 rounded-sm border border-border bg-panel p-3">
       {/* side */}
       <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1">
         {(["long", "short"] as const).map((s) => (
@@ -197,16 +198,13 @@ export default function OrderForm({
       </div>
 
       {/* submit */}
-      <button
-        disabled={!canSubmit}
-        className="btn-primary mt-auto rounded-xl py-3.5 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <Button variant="primary" size="lg" disabled={!canSubmit} className="mt-auto w-full py-3.5">
         {collateral <= 0
           ? "Enter amount"
           : collateral > BALANCE.available
             ? "Insufficient balance"
             : `Open ${side === "long" ? "Long" : "Short"}`}
-      </button>
+      </Button>
     </div>
   );
 }

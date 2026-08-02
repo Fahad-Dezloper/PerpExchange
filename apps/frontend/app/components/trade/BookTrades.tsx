@@ -9,7 +9,7 @@ export default function BookTrades({ mid, dp }: { mid: number; dp: number }) {
   const [tab, setTab] = useState<"book" | "trades">("book");
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden  border-x border-border bg-panel">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-sm border border-border bg-panel">
       {/* toggle */}
       <div className="flex items-center gap-1 border-b border-border p-1">
         <TabBtn active={tab === "book"} onClick={() => setTab("book")}>Book</TabBtn>

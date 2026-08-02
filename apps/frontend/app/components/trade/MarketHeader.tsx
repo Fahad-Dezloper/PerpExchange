@@ -56,7 +56,7 @@ export default function MarketHeader({
   const scrollBy = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   return (
-    <div className="flex items-stretch border-b border-border bg-panel">
+    <div className="flex items-stretch rounded-sm border border-border bg-panel">
       {/* switcher lives OUTSIDE the scroll container so its dropdown isn't clipped */}
       <div className="flex shrink-0 items-center pl-4 pr-2">
         <MarketSwitcher symbol={symbol} leverage={market.maxLeverage} />
