@@ -4,9 +4,21 @@ import Jwt from "jsonwebtoken";
 import { authMiddleware } from "./middleware";
 import { initQueue, loopback } from "./loopback";
 import { ulid } from "ulid";
+import cors from "cors";
 
 const app = express();
 app.use(express.json());
+
+app.use((req, res, next) => {
+  res.header(
+    "Access-Control-Allow-Origin",
+    process.env.FRONTEND_URL ?? "http://localhost:3002",
+  );
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "content-type, token");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 /// Auth
 app.post("/api/v1/signup", async (req, res) => {
