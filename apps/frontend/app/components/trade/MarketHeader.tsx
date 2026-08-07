@@ -2,9 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { marketBySymbol, MARKETS, fmtNum, fmtCompact, priceDp } from "../../../lib/mock";
+import {
+  marketBySymbol,
+  MARKETS,
+  fmtNum,
+  fmtCompact,
+  priceDp,
+} from "../../../lib/mock";
 import TokenIcon from "../TokenIcon";
-import { ChevronDown, ChevronLeft, ChevronRight, Search, Star, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Star,
+  X,
+} from "lucide-react";
+import { ZAP } from "@/icons/zap";
 
 export default function MarketHeader({
   symbol,
@@ -53,7 +67,8 @@ export default function MarketHeader({
     };
   }, []);
 
-  const scrollBy = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
+  const scrollBy = (dx: number) =>
+    scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   return (
     <div className="flex items-stretch rounded-sm border border-border bg-panel">
@@ -78,29 +93,44 @@ export default function MarketHeader({
         >
           <div className="h-9 w-px shrink-0 bg-border" />
 
-      {/* last / mark price */}
-      <div className="shrink-0">
-        <div className={`tnum text-lg font-semibold leading-tight ${dir > 0 ? "text-long" : "text-short"}`}>
-          {fmtNum(price, dp)}
-        </div>
-        <div className="tnum text-[13px] leading-tight text-muted">{fmtNum(mark, dp)}</div>
-      </div>
+          {/* last / mark price */}
+          <div className="shrink-0">
+            <div
+              className={`tnum text-lg font-semibold leading-tight ${dir > 0 ? "text-long" : "text-short"}`}
+            >
+              {fmtNum(price, dp)}
+            </div>
+            <div className="tnum text-[13px] leading-tight text-muted">
+              {fmtNum(mark, dp)}
+            </div>
+          </div>
 
-      <HeaderStat label="Index Price">{fmtNum(index, dp)}</HeaderStat>
-      <HeaderStat label="24H Change" tone={up ? "long" : "short"}>
-        {changeAbs >= 0 ? "+" : ""}{fmtNum(changeAbs, 1)} {up ? "+" : ""}{market.change24h.toFixed(2)}%
-      </HeaderStat>
-      <HeaderStat label="1H Funding / Countdown">
-        <span className="text-warn">{(funding1h * 100).toFixed(4)}%</span>
-        <span className="text-muted"> / <Countdown /></span>
-      </HeaderStat>
-      <HeaderStat label="24H High">{fmtNum(high, dp)}</HeaderStat>
-      <HeaderStat label="24H Low">{fmtNum(low, dp)}</HeaderStat>
-      <HeaderStat label="24H Volume (USD)">{fmtNum(market.volume24h, 2)}</HeaderStat>
-      <HeaderStat label={`Open Interest (${base})`}>{fmtNum(oiBase, 5)}</HeaderStat>
-        <HeaderStat label="Profit APY" tone="long">
-          <span className="inline-flex items-center gap-1">{profitApy.toFixed(2)}% ⚡</span>
-        </HeaderStat>
+          <HeaderStat label="Index Price">{fmtNum(index, dp)}</HeaderStat>
+          <HeaderStat label="24H Change" tone={up ? "long" : "short"}>
+            {changeAbs >= 0 ? "+" : ""}
+            {fmtNum(changeAbs, 1)} {up ? "+" : ""}
+            {market.change24h.toFixed(2)}%
+          </HeaderStat>
+          <HeaderStat label="1H Funding / Countdown">
+            <span className="text-warn">{(funding1h * 100).toFixed(4)}%</span>
+            <span className="text-muted">
+              {" "}
+              / <Countdown />
+            </span>
+          </HeaderStat>
+          <HeaderStat label="24H High">{fmtNum(high, dp)}</HeaderStat>
+          <HeaderStat label="24H Low">{fmtNum(low, dp)}</HeaderStat>
+          <HeaderStat label="24H Volume (USD)">
+            {fmtNum(market.volume24h, 2)}
+          </HeaderStat>
+          <HeaderStat label={`Open Interest (${base})`}>
+            {fmtNum(oiBase, 5)}
+          </HeaderStat>
+          <HeaderStat label="Profit APY" tone="long">
+            <span className="inline-flex items-center gap-1">
+              {profitApy.toFixed(2)}% <ZAP />
+            </span>
+          </HeaderStat>
         </div>
 
         {!atEnd && (
@@ -118,7 +148,13 @@ export default function MarketHeader({
 
 const CATEGORIES = ["Futures"] as const;
 
-function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number }) {
+function MarketSwitcher({
+  symbol,
+  leverage,
+}: {
+  symbol: string;
+  leverage: number;
+}) {
   const router = useRouter();
   const m = marketBySymbol(symbol);
   const base = m.symbol.split("-")[0];
@@ -126,13 +162,16 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("Futures");
   const [q, setQ] = useState("");
-  const [favs, setFavs] = useState<Set<string>>(new Set(["BTC-PERP", "ETH-PERP"]));
+  const [favs, setFavs] = useState<Set<string>>(
+    new Set(["BTC-PERP", "ETH-PERP"]),
+  );
 
   // only Futures has data in our mock
   const rows = (cat === "Futures" ? [...MARKETS] : [])
     .filter(
       (mk) =>
-        mk.symbol.toLowerCase().includes(q.toLowerCase()) || mk.name.toLowerCase().includes(q.toLowerCase()),
+        mk.symbol.toLowerCase().includes(q.toLowerCase()) ||
+        mk.name.toLowerCase().includes(q.toLowerCase()),
     )
     .sort((a, b) => b.volume24h - a.volume24h);
 
@@ -157,11 +196,15 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
         className={`flex items-center gap-12.5 rounded-md px-1 py-1 hover:bg-panel-2 ${open && "bg-panel-2"}`}
       >
         <div className="flex gap-2 items-center">
-        <TokenIcon symbol={m.symbol} size={28} />
-        <span className="text-base font-semibold">{base}-PERP</span>
-        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">{leverage}x</span>
+          <TokenIcon symbol={m.symbol} size={28} />
+          <span className="text-base font-semibold">{base}-PERP</span>
+          <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">
+            {leverage}x
+          </span>
         </div>
-        <ChevronDown className={`h-5 w-5 text-muted transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`h-5 w-5 text-muted transition ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
@@ -175,7 +218,9 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
                   key={c}
                   onClick={() => setCat(c)}
                   className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
-                    cat === c ? "bg-panel-2 text-fg" : "text-muted hover:text-fg"
+                    cat === c
+                      ? "bg-panel-2 text-fg"
+                      : "text-muted hover:text-fg"
                   }`}
                 >
                   {c}
@@ -184,7 +229,10 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
               <button className="ml-1 rounded-md p-1.5 text-muted hover:text-warn">
                 <Star className="h-4 w-4" />
               </button>
-              <button onClick={() => setOpen(false)} className="ml-auto rounded-md p-1.5 text-muted hover:text-fg">
+              <button
+                onClick={() => setOpen(false)}
+                className="ml-auto rounded-md p-1.5 text-muted hover:text-fg"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -214,7 +262,9 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
             <div className="max-h-[440px] overflow-y-auto pb-1">
               {rows.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted">
-                  {cat === "Futures" ? "No markets found" : `${cat} coming soon`}
+                  {cat === "Futures"
+                    ? "No markets found"
+                    : `${cat} coming soon`}
                 </div>
               ) : (
                 rows.map((mk) => {
@@ -235,34 +285,52 @@ function MarketSwitcher({ symbol, leverage }: { symbol: string; leverage: number
                         <TokenIcon symbol={mk.symbol} size={28} />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="truncate text-[13px] font-medium">{b}-PERP</span>
+                            <span className="truncate text-[13px] font-medium">
+                              {b}-PERP
+                            </span>
                             <span className="rounded bg-accent/15 px-1 py-0.5 text-[9px] font-semibold text-accent">
                               {mk.maxLeverage}x
                             </span>
                           </div>
-                          <div className="tnum text-[11px] text-muted">${fmtCompact(mk.volume24h)}</div>
+                          <div className="tnum text-[11px] text-muted">
+                            ${fmtCompact(mk.volume24h)}
+                          </div>
                         </div>
                       </div>
 
                       {/* price / change */}
                       <div className="text-right">
-                        <div className="tnum text-[13px]">{fmtNum(mk.price, priceDp(mk.price))}</div>
-                        <div className={`tnum text-[11px] ${up ? "text-long" : "text-short"}`}>
-                          {up ? "+" : ""}{mk.change24h.toFixed(2)}%
+                        <div className="tnum text-[13px]">
+                          {fmtNum(mk.price, priceDp(mk.price))}
+                        </div>
+                        <div
+                          className={`tnum text-[11px] ${up ? "text-long" : "text-short"}`}
+                        >
+                          {up ? "+" : ""}
+                          {mk.change24h.toFixed(2)}%
                         </div>
                       </div>
 
                       {/* funding / OI */}
                       <div className="text-right">
-                        <div className={`tnum text-[13px] ${mk.funding >= 0 ? "text-fg" : "text-short"}`}>
+                        <div
+                          className={`tnum text-[13px] ${mk.funding >= 0 ? "text-fg" : "text-short"}`}
+                        >
                           {(mk.funding * 100).toFixed(4)}%
                         </div>
-                        <div className="tnum text-[11px] text-muted">${fmtCompact(mk.openInterest)}</div>
+                        <div className="tnum text-[11px] text-muted">
+                          ${fmtCompact(mk.openInterest)}
+                        </div>
                       </div>
 
                       {/* favorite */}
-                      <button onClick={(e) => toggleFav(e, mk.symbol)} className="p-1">
-                        <Star className={`h-4 w-4 ${fav ? "fill-accent text-accent" : "text-muted hover:text-fg"}`} />
+                      <button
+                        onClick={(e) => toggleFav(e, mk.symbol)}
+                        className="p-1"
+                      >
+                        <Star
+                          className={`h-4 w-4 ${fav ? "fill-accent text-accent" : "text-muted hover:text-fg"}`}
+                        />
                       </button>
                     </div>
                   );
@@ -286,7 +354,13 @@ function HeaderStat({
   tone?: "long" | "short" | "warn";
 }) {
   const color =
-    tone === "long" ? "text-long" : tone === "short" ? "text-short" : tone === "warn" ? "text-warn" : "text-fg";
+    tone === "long"
+      ? "text-long"
+      : tone === "short"
+        ? "text-short"
+        : tone === "warn"
+          ? "text-warn"
+          : "text-fg";
   return (
     <div className="shrink-0 whitespace-nowrap">
       <div className="text-[11px] text-muted">{label}</div>
@@ -303,5 +377,9 @@ function Countdown() {
     return () => clearInterval(id);
   }, []);
   const p = (n: number) => String(n).padStart(2, "0");
-  return <>{p(Math.floor(s / 3600))}:{p(Math.floor((s % 3600) / 60))}:{p(s % 60)}</>;
+  return (
+    <>
+      {p(Math.floor(s / 3600))}:{p(Math.floor((s % 3600) / 60))}:{p(s % 60)}
+    </>
+  );
 }
