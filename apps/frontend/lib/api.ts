@@ -74,8 +74,7 @@ export async function deposit(amount: number): Promise<void> {
 }
 
 export async function withdraw(amount: number): Promise<void> {
-  if (USE_MOCK) return void (await wait());
-  await req("/api/v1/withdraw", {
+  await req("api/v1/withdraw", {
     method: "POST",
     body: JSON.stringify({ amount: String(amount) }),
   });

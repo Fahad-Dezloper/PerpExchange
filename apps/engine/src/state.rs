@@ -497,15 +497,27 @@ impl Engine {
             Ok(a) if a > Decimal::ZERO => a,
             _ => return serde_json::json!({ "ok": false, "error": "insufficient balance" }),
         };
-        let bal = self.balances.entry(user_id).or_default();
-        if bal.available < amt {
-            return serde_json::json!({ "ok": false, "error": "insufficient balance" });
-        }
-        bal.available -= amt;
+
+        let (available, locked) = {
+            let bal = self.balances.entry(user_id.clone()).or_default();
+            if bal.available < amt {
+                return serde_json::json!({ "ok": false, "error": "insufficient balance" });
+            }
+            bal.available -= amt;
+            (bal.available, bal.locked)
+        };
+
+        self.emit_db(serde_json::json!({
+            "type": "balance_update",
+            "userId": user_id,
+            "available": available.to_string(),
+            "locked": locked.to_string(),
+        }));
+
         serde_json::json!({
             "ok": true,
-            "available": bal.available.to_string(),
-            "locked": bal.locked.to_string()
+            "available": available.to_string(),
+            "locked": locked.to_string()
         })
     }
 

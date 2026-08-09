@@ -134,7 +134,7 @@ async fn main() -> redis::RedisResult<()> {
 }
 
 fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
-    if let ToEngine::Onramp { .. } = &msg {
+    if let ToEngine::Withdraw { .. } = &msg {
         println!("{msg:?}");
     }
 
