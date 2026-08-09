@@ -9,7 +9,7 @@ import { useAuth } from "../../lib/auth";
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const { login, signup, loading } = useAuth();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const isSignup = mode === "signup";
@@ -28,8 +28,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             e.preventDefault();
             setError(null);
             try {
-              if (isSignup) await signup(username, password);
-              else await login(username, password);
+              if (isSignup) await signup(email, password);
+              else await login(email, password);
               router.push("/portfolio");
             } catch (err) {
               setError((err as Error).message || "Something went wrong");
@@ -37,12 +37,13 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           }}
         >
           <label className="block">
-            <span className="mb-1.5 block text-xs text-muted">Username</span>
+            <span className="mb-1.5 block text-xs text-muted">Email</span>
             <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-border bg-panel-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
-              placeholder="satoshi"
+              placeholder="you@example.com"
             />
           </label>
           <label className="block">
@@ -60,7 +61,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
           <button
             type="submit"
-            disabled={loading || !username || !password}
+            disabled={loading || !email || !password}
             className="btn-primary w-full rounded-lg py-2.5 text-sm font-semibold transition disabled:opacity-40"
           >
             {loading ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
@@ -75,7 +76,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </p>
       </div>
       <p className="mt-4 text-center text-[11px] text-muted">
-        Mock — wire to <code className="text-accent">POST /api/v1/{isSignup ? "signup" : "signin"}</code>.
+        Secured by Better Auth.
       </p>
     </div>
   );

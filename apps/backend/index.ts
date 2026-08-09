@@ -1,78 +1,32 @@
 import express from "express";
 import { prisma } from "db";
-import Jwt from "jsonwebtoken";
 import { authMiddleware } from "./middleware";
 import { initQueue, loopback } from "./loopback";
 import { ulid } from "ulid";
-import cors from "cors";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./auth";
 
 const app = express();
-app.use(express.json());
 
+// CORS first (applies to /api/auth too)
 app.use((req, res, next) => {
   res.header(
     "Access-Control-Allow-Origin",
     process.env.FRONTEND_URL ?? "http://localhost:3002",
   );
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "content-type, token");
+  res.header("Access-Control-Allow-Headers", "content-type, token, authorization");
+  res.header("Access-Control-Expose-Headers", "set-auth-token");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
 
-/// Auth
-app.post("/api/v1/signup", async (req, res) => {
-  const { username, password } = req.body;
+// Better Auth routes — MUST be before express.json() (it reads the raw body).
+// Express 5 wildcard syntax:
+app.all("/api/auth/{*any}", toNodeHandler(auth));
 
-  if (!username || !password) {
-    res.status(411).json({});
-    return;
-  }
-
-  const response = await prisma.user.create({
-    data: {
-      username,
-      password,
-    },
-  });
-
-  res.status(200).json({
-    id: response.id,
-    message: "You are IN",
-  });
-});
-
-app.post("/api/v1/signin", async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(411).json({
-      message: "Invalid credentials",
-    });
-  }
-
-  const user = await prisma.user.findFirst({
-    where: {
-      username,
-      password,
-    },
-  });
-
-  if (!user) {
-    return res.status(411).json({
-      message: "Invalid credentials",
-    });
-  }
-
-  res.status(200).json({
-    token: Jwt.sign(
-      {
-        userId: user.id,
-      },
-      process.env.JWT_SECRET!,
-    ),
-  });
-});
+// JSON parser for our own routes (after the auth handler)
+app.use(express.json());
 
 /// User
 app.post("/api/v1/onramp", authMiddleware, async (req, res) => {

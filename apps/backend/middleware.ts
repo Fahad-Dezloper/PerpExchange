@@ -1,27 +1,22 @@
 import type { NextFunction, Request, Response } from "express";
-import type { JwtPayload } from "jsonwebtoken";
-import jwt from "jsonwebtoken";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "./auth";
 
-export function authMiddleware(
+// Verifies the Better Auth session (bearer token) and puts the user id on req.
+export async function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  const token = req.headers.token as string;
+  const session = await auth.api.getSession({
+    headers: fromNodeHeaders(req.headers),
+  });
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-    if (decoded.userId) {
-      req.userId = decoded.userId;
-      next();
-    } else {
-      res.status(403).json({
-        message: "Incorrect token",
-      });
-    }
-  } catch (e) {
-    res.status(403).json({
-      message: "Not Authorized",
-    });
+  if (!session) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
   }
+
+  req.userId = session.user.id;
+  next();
 }

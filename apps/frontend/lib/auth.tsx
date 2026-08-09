@@ -1,60 +1,55 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import * as api from "./api";
+import { createContext, useContext } from "react";
+import { authClient } from "./auth-client";
 
 type AuthState = {
   token: string | null;
   username: string | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { data: session, isPending } = authClient.useSession();
 
-  useEffect(() => {
-    setToken(localStorage.getItem("token"));
-    setUsername(localStorage.getItem("username"));
-  }, []);
-
-  async function login(u: string, p: string) {
-    setLoading(true);
-    try {
-      const { token } = await api.signin(u, p);
-      localStorage.setItem("token", token);
-      localStorage.setItem("username", u);
-      setToken(token);
-      setUsername(u);
-    } finally {
-      setLoading(false);
-    }
+  async function login(email: string, password: string) {
+    const { error } = await authClient.signIn.email({ email, password });
+    if (error) throw new Error(error.message ?? "Sign in failed");
   }
 
-  async function signup(u: string, p: string) {
-    setLoading(true);
-    try {
-      await api.signup(u, p);
-      await login(u, p); // auto sign-in after signup
-    } finally {
-      setLoading(false);
-    }
+  async function signup(email: string, password: string) {
+    const { error } = await authClient.signUp.email({
+      email,
+      password,
+      name: email.split("@")[0],
+    });
+    if (error) throw new Error(error.message ?? "Sign up failed");
   }
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    setToken(null);
-    setUsername(null);
+    authClient.signOut();
+    localStorage.removeItem("bearer_token");
   }
 
-  return <Ctx.Provider value={{ token, username, loading, login, signup, logout }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider
+      value={{
+        token: session ? (typeof window !== "undefined" ? localStorage.getItem("bearer_token") : null) : null,
+        username: session?.user.email ?? null,
+        loading: isPending,
+        login,
+        signup,
+        logout,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth() {

@@ -28,9 +28,9 @@ export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 let onUnauthorized: (() => void) | null = null;
 
-function token(): string | null {
+function bearer(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("token");
+  return window.localStorage.getItem("bearer_token");
 }
 
 export function setUnauthorizedHandler(fn: () => void) {
@@ -42,7 +42,7 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
     ...opts,
     headers: {
       "content-type": "application/json",
-      ...(token() ? { token: token()! } : {}),
+      ...(bearer() ? { authorization: `Bearer ${bearer()}` } : {}),
       ...opts.headers,
     },
   });
@@ -56,27 +56,7 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
-export async function signup(
-  username: string,
-  password: string,
-): Promise<{ id: string }> {
-  if (USE_MOCK) return (await wait(), { id: "mock-user" });
-  return req("/api/v1/signup", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-}
-
-export async function signin(
-  username: string,
-  password: string,
-): Promise<{ token: string }> {
-  if (USE_MOCK) return (await wait(), { token: "mock-token" });
-  return req("/api/v1/signin", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-}
+// NOTE: auth (signup/signin/signout) is handled by Better Auth via lib/auth-client.
 
 export async function getBalance(): Promise<BalanceDto> {
   if (USE_MOCK) return (await wait(), BALANCE);

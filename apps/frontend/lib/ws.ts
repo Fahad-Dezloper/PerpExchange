@@ -62,7 +62,7 @@ export function useChannel<T = any>(channel: string | null, onMsg: (data: T) => 
 let socket: WebSocket | null = null;
 function getSocket(): WebSocket {
   if (socket && socket.readyState <= WebSocket.OPEN) return socket;
-  const token = typeof window !== "undefined" ? window.localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? window.localStorage.getItem("bearer_token") : null;
   socket = new WebSocket(`${WS_URL}${token ? `?token=${token}` : ""}`);
   return socket;
 }
