@@ -26,10 +26,15 @@ import {
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+let onUnauthorized: (() => void) | null = null;
 
 function token(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem("token");
+}
+
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
 }
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -41,6 +46,10 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
       ...opts.headers,
     },
   });
+  if (res.status === 401 || res.status === 403) {
+    onUnauthorized?.();
+    throw new Error("unauthorized");
+  }
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
   return res.json() as Promise<T>;
 }

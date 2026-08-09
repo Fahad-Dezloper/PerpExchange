@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ArrowUpDown, ChevronDown, Settings2 } from "lucide-react";
 import { BALANCE, fmtUsd } from "../../../lib/mock";
 import Button from "../ui/Button";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../../lib/auth";
 
 const QUOTE = "USDT";
 
@@ -29,6 +31,8 @@ export default function OrderForm({
   const [val, setVal] = useState("");
   const [leverage, setLeverage] = useState(10);
   const [slippage] = useState("0.5");
+  const router = useRouter();
+  const { token } = useAuth();
 
   const px = type === "limit" ? Number(limitPrice) || price : price;
   const n = Number(val) || 0;
@@ -45,7 +49,10 @@ export default function OrderForm({
   }
   const notional = collateral * leverage;
   const fee = notional * 0.0005;
-  const liq = side === "long" ? px * (1 - 1 / leverage + 0.005) : px * (1 + 1 / leverage - 0.005);
+  const liq =
+    side === "long"
+      ? px * (1 - 1 / leverage + 0.005)
+      : px * (1 + 1 / leverage - 0.005);
   const canSubmit = collateral > 0 && collateral <= BALANCE.available;
 
   const swap = () => {
@@ -70,7 +77,9 @@ export default function OrderForm({
             key={s}
             onClick={() => setSide(s)}
             className={`rounded-lg py-2.5 text-[14px] font-semibold capitalize transition ${
-              side === s ? "bg-panel text-fg shadow-sm" : "text-muted hover:text-fg"
+              side === s
+                ? "bg-panel text-fg shadow-sm"
+                : "text-muted hover:text-fg"
             }`}
           >
             {s}
@@ -81,9 +90,13 @@ export default function OrderForm({
       {/* market price + order type */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-panel-2 px-3 py-2.5">
-          <div className="text-[12px] text-muted">{type === "market" ? "Market price" : "Price"}</div>
+          <div className="text-[12px] text-muted">
+            {type === "market" ? "Market price" : "Price"}
+          </div>
           {type === "market" ? (
-            <div className="tnum text-[15px] font-medium">{fmtUsd(price, dp)}</div>
+            <div className="tnum text-[15px] font-medium">
+              {fmtUsd(price, dp)}
+            </div>
           ) : (
             <input
               value={limitPrice}
@@ -95,16 +108,26 @@ export default function OrderForm({
         </div>
 
         <div className="relative rounded-xl bg-panel-2 px-3 py-2.5">
-          <button onClick={() => setTypeOpen((o) => !o)} className="flex w-full items-center justify-between">
+          <button
+            onClick={() => setTypeOpen((o) => !o)}
+            className="flex w-full items-center justify-between"
+          >
             <span className="text-left">
               <span className="block text-[12px] text-muted">Order type</span>
-              <span className="block text-[15px] font-medium capitalize">{type}</span>
+              <span className="block text-[15px] font-medium capitalize">
+                {type}
+              </span>
             </span>
-            <ChevronDown className={`h-4 w-4 text-muted transition ${typeOpen ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`h-4 w-4 text-muted transition ${typeOpen ? "rotate-180" : ""}`}
+            />
           </button>
           {typeOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setTypeOpen(false)} />
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setTypeOpen(false)}
+              />
               <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-border bg-panel p-1 shadow-xl">
                 {(["market", "limit"] as const).map((t) => (
                   <button
@@ -132,7 +155,13 @@ export default function OrderForm({
           label="Collateral"
           hint={`Avail ${fmtUsd(BALANCE.available)}`}
           unit={QUOTE}
-          value={mode === "collateral" ? val : collateral ? collateral.toFixed(2) : ""}
+          value={
+            mode === "collateral"
+              ? val
+              : collateral
+                ? collateral.toFixed(2)
+                : ""
+          }
           onChange={(v) => {
             setMode("collateral");
             setVal(v);
@@ -172,7 +201,11 @@ export default function OrderForm({
         />
         <div className="mt-1 flex justify-between text-[11px] text-muted">
           {marks.map((m) => (
-            <button key={m} onClick={() => setLeverage(m)} className="tnum hover:text-fg">
+            <button
+              key={m}
+              onClick={() => setLeverage(m)}
+              className="tnum hover:text-fg"
+            >
               {m}x
             </button>
           ))}
@@ -183,7 +216,10 @@ export default function OrderForm({
       <div className="space-y-1.5 px-1 text-[12px]">
         <SummaryRow k="Order Value" v={fmtUsd(notional)} />
         <SummaryRow k="Fee (0.05%)" v={fmtUsd(fee)} />
-        <SummaryRow k="Est. Liquidation Price" v={collateral > 0 ? fmtUsd(liq) : "—"} />
+        <SummaryRow
+          k="Est. Liquidation Price"
+          v={collateral > 0 ? fmtUsd(liq) : "—"}
+        />
       </div>
 
       {/* slippage */}
@@ -197,14 +233,29 @@ export default function OrderForm({
         </div>
       </div>
 
-      {/* submit */}
-      <Button variant="primary" size="lg" disabled={!canSubmit} className="mt-auto w-full py-3.5">
-        {collateral <= 0
-          ? "Enter amount"
-          : collateral > BALANCE.available
-            ? "Insufficient balance"
-            : `Open ${side === "long" ? "Long" : "Short"}`}
-      </Button>
+      {!token ? (
+        <Button
+          variant="primary"
+          size="lg"
+          className="mt-auto w-full py-3.5"
+          onClick={() => router.push("/login")}
+        >
+          Log in to trade
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={!canSubmit}
+          className="mt-auto w-full py-3.5"
+        >
+          {collateral <= 0
+            ? "Enter amount"
+            : collateral > BALANCE.available
+              ? "Insufficient balance"
+              : `Open ${side === "long" ? "Long" : "Short"}`}
+        </Button>
+      )}
     </div>
   );
 }
