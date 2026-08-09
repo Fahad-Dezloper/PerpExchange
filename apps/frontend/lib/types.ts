@@ -23,6 +23,7 @@ export type Position = {
 };
 
 export type Market = {
+  id: string;
   symbol: string;
   name: string;
   price: number;
@@ -101,6 +102,7 @@ export function mapBalance(b: WireBalance): BalanceDto {
 
 export function mapMarket(m: WireMarket): Market {
   return {
+    id: m.id,
     symbol: m.slug,
     name: m.slug.split("-")[0],
     price: 0,

@@ -81,6 +81,11 @@ app.post("/api/v1/withdraw", authMiddleware, async (req, res) => {
   }
 });
 
+app.get("/api/v1/markets", async (_req, res) => {
+  const markets = await prisma.market.findMany();
+  res.json(markets);
+});
+
 /// Market
 app.post("/api/v1/market", async (req, res) => {
   const { symbol, imageUrl } = req.body;
@@ -99,15 +104,11 @@ app.post("/api/v1/market", async (req, res) => {
     },
   });
 
-  console.log("reached here", response);
-
   // publish and wait for the other queue to return the response
   const LoopbackResponse = await loopback({
     messageType: "create_market",
     marketId: response.id.toString(),
   });
-
-  console.log("loop back response", LoopbackResponse);
 
   res.json({
     id: response.id,

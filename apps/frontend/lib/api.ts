@@ -56,8 +56,6 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
-// NOTE: auth (signup/signin/signout) is handled by Better Auth via lib/auth-client.
-
 export async function getBalance(): Promise<BalanceDto> {
   return mapBalance(await req<WireBalance>("api/v1/balance"));
 }
@@ -81,8 +79,7 @@ export async function withdraw(amount: number): Promise<void> {
 }
 
 export async function getMarkets(): Promise<Market[]> {
-  if (USE_MOCK) return (await wait(), MARKETS);
-  return (await req<WireMarket[]>("/api/v1/markets")).map(mapMarket);
+  return (await req<WireMarket[]>("api/v1/markets")).map(mapMarket);
 }
 
 export async function getDepth(marketId: string): Promise<Depth> {

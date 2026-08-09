@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 export type Market = {
+  id: string;
   symbol: string;
   name: string;
   price: number;
@@ -16,12 +17,17 @@ export type Market = {
 
 // REAL: GET /api/v1/markets  (+ live price via ws ticker.<symbol>)
 export const MARKETS: Market[] = [
-  { symbol: "BTC-PERP", name: "Bitcoin", price: 67432.5, change24h: 2.34, volume24h: 1.82e9, funding: 0.0089, openInterest: 4.2e8, maxLeverage: 50 },
-  { symbol: "ETH-PERP", name: "Ethereum", price: 3521.18, change24h: -1.12, volume24h: 9.1e8, funding: -0.0042, openInterest: 2.1e8, maxLeverage: 50 },
-  { symbol: "SOL-PERP", name: "Solana", price: 168.42, change24h: 5.67, volume24h: 5.4e8, funding: 0.0123, openInterest: 1.3e8, maxLeverage: 20 },
-  { symbol: "AVAX-PERP", name: "Avalanche", price: 34.21, change24h: -3.45, volume24h: 1.2e8, funding: -0.0067, openInterest: 4.5e7, maxLeverage: 20 },
-  { symbol: "ARB-PERP", name: "Arbitrum", price: 0.892, change24h: 8.91, volume24h: 8.9e7, funding: 0.0201, openInterest: 3.2e7, maxLeverage: 20 },
-  { symbol: "DOGE-PERP", name: "Dogecoin", price: 0.1543, change24h: 1.05, volume24h: 2.3e8, funding: 0.0034, openInterest: 6.7e7, maxLeverage: 25 },
+  {
+    id: "BTC-PERP",
+    symbol: "BTC-PERP",
+    name: "Bitcoin",
+    price: 67432.5,
+    change24h: 2.34,
+    volume24h: 1.82e9,
+    funding: 0.0089,
+    openInterest: 4.2e8,
+    maxLeverage: 50,
+  },
 ];
 
 export function marketBySymbol(symbol: string): Market {
@@ -45,7 +51,12 @@ export function makeOrderBook(mid: number, tick = mid * 0.0002) {
   return { asks: build(1).reverse(), bids: build(-1) };
 }
 
-export type Trade = { price: number; size: number; side: "buy" | "sell"; time: string };
+export type Trade = {
+  price: number;
+  size: number;
+  side: "buy" | "sell";
+  time: string;
+};
 
 // REAL: ws trade.<symbol>
 export function makeTrades(mid: number, n = 30): Trade[] {
@@ -92,9 +103,42 @@ export type Position = {
 
 // REAL: ws position.<userId>  (seed GET /api/v1/positions)
 export const POSITIONS: Position[] = [
-  { symbol: "BTC-PERP", side: "Long", size: 0.35, entry: 65200, mark: 67432.5, leverage: 10, margin: 2282, liq: 59100, pnl: 781.4, pnlPct: 34.2 },
-  { symbol: "SOL-PERP", side: "Short", size: 40, entry: 172.4, mark: 168.42, leverage: 5, margin: 1379, liq: 198.6, pnl: 159.2, pnlPct: 11.5 },
-  { symbol: "ETH-PERP", side: "Long", size: 1.2, entry: 3580, mark: 3521.18, leverage: 8, margin: 537, liq: 3190, pnl: -70.6, pnlPct: -13.1 },
+  {
+    symbol: "BTC-PERP",
+    side: "Long",
+    size: 0.35,
+    entry: 65200,
+    mark: 67432.5,
+    leverage: 10,
+    margin: 2282,
+    liq: 59100,
+    pnl: 781.4,
+    pnlPct: 34.2,
+  },
+  {
+    symbol: "SOL-PERP",
+    side: "Short",
+    size: 40,
+    entry: 172.4,
+    mark: 168.42,
+    leverage: 5,
+    margin: 1379,
+    liq: 198.6,
+    pnl: 159.2,
+    pnlPct: 11.5,
+  },
+  {
+    symbol: "ETH-PERP",
+    side: "Long",
+    size: 1.2,
+    entry: 3580,
+    mark: 3521.18,
+    leverage: 8,
+    margin: 537,
+    liq: 3190,
+    pnl: -70.6,
+    pnlPct: -13.1,
+  },
 ];
 
 export type OpenOrder = {
@@ -109,12 +153,33 @@ export type OpenOrder = {
 
 // REAL: GET /api/v1/orders?open=true
 export const OPEN_ORDERS: OpenOrder[] = [
-  { symbol: "BTC-PERP", side: "long", type: "Limit", price: 66000, size: 0.2, filled: 0, time: "09:41:02" },
-  { symbol: "ETH-PERP", side: "short", type: "Limit", price: 3600, size: 0.8, filled: 0.3, time: "09:38:55" },
+  {
+    symbol: "BTC-PERP",
+    side: "long",
+    type: "Limit",
+    price: 66000,
+    size: 0.2,
+    filled: 0,
+    time: "09:41:02",
+  },
+  {
+    symbol: "ETH-PERP",
+    side: "short",
+    type: "Limit",
+    price: 3600,
+    size: 0.8,
+    filled: 0.3,
+    time: "09:38:55",
+  },
 ];
 
 // REAL: GET /api/v1/balance
-export const BALANCE = { available: 8421.55, locked: 4198.0, equity: 13489.35, unrealized: 869.8 };
+export const BALANCE = {
+  available: 8421.55,
+  locked: 4198.0,
+  equity: 13489.35,
+  unrealized: 869.8,
+};
 
 // ── helpers ──────────────────────────────────────────────────
 function seeded(seed: number) {
@@ -128,13 +193,25 @@ function clock(i: number) {
 }
 
 export function fmtUsd(n: number, dp = 2) {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return (
+    "$" +
+    n.toLocaleString("en-US", {
+      minimumFractionDigits: dp,
+      maximumFractionDigits: dp,
+    })
+  );
 }
 export function fmtNum(n: number, dp = 2) {
-  return n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: dp,
+    maximumFractionDigits: dp,
+  });
 }
 export function fmtCompact(n: number) {
-  return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n);
+  return Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 export function priceDp(price: number) {
   return price >= 100 ? 2 : price >= 1 ? 3 : 4;
