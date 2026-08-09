@@ -6,7 +6,6 @@ import * as api from "../../lib/api";
 import { fmtUsd } from "../../lib/mock";
 import { useBalance } from "@/lib/balance";
 
-// REAL: deposit -> POST /api/v1/onramp ; withdraw -> POST /api/v1/withdraw
 export default function DepositModal({
   open,
   onClose,

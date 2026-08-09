@@ -11,7 +11,6 @@ const HEADER_COLS =
 
 export default function MarketsPage() {
   const { markets, loading } = useMarkets();
-  console.log("markets here", markets);
 
   if (loading) {
     return (
