@@ -8,24 +8,24 @@ import { auth } from "./auth";
 
 const app = express();
 
-// CORS first (applies to /api/auth too)
 app.use((req, res, next) => {
   res.header(
     "Access-Control-Allow-Origin",
     process.env.FRONTEND_URL ?? "http://localhost:3002",
   );
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "content-type, token, authorization");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT, DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "content-type, token, authorization",
+  );
+  res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Expose-Headers", "set-auth-token");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
 
-// Better Auth routes — MUST be before express.json() (it reads the raw body).
-// Express 5 wildcard syntax:
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
-// JSON parser for our own routes (after the auth handler)
 app.use(express.json());
 
 /// User

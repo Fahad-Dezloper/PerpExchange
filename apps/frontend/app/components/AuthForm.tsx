@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth";
 
-
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const { login, signup, loading } = useAuth();
@@ -17,9 +16,13 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-md flex-col justify-center px-4">
       <div className="rounded-2xl border border-border bg-panel p-8">
-        <h1 className="text-xl font-semibold">{isSignup ? "Create account" : "Welcome back"}</h1>
+        <h1 className="text-xl font-semibold">
+          {isSignup ? "Create account" : "Welcome back"}
+        </h1>
         <p className="mt-1 text-sm text-muted">
-          {isSignup ? "Start trading perpetual futures." : "Sign in to your account."}
+          {isSignup
+            ? "Start trading perpetual futures."
+            : "Sign in to your account."}
         </p>
 
         <form
@@ -30,7 +33,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             try {
               if (isSignup) await signup(email, password);
               else await login(email, password);
-              router.push("/portfolio");
+              router.push("/");
             } catch (err) {
               setError((err as Error).message || "Something went wrong");
             }
@@ -70,7 +73,10 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
         <p className="mt-5 text-center text-sm text-muted">
           {isSignup ? "Already have an account? " : "No account yet? "}
-          <Link href={isSignup ? "/login" : "/signup"} className="text-accent hover:underline">
+          <Link
+            href={isSignup ? "/login" : "/signup"}
+            className="text-accent hover:underline"
+          >
             {isSignup ? "Sign in" : "Sign up"}
           </Link>
         </p>
