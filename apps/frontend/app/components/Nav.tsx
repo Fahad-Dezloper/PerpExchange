@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { fmtUsd, BALANCE } from "../../lib/mock";
+import { fmtUsd } from "../../lib/mock";
+
 import { useAuth } from "../../lib/auth";
 import DepositModal from "./DepositModal";
-
+import { useBalance } from "@/lib/balance";
 
 export default function Nav() {
   const path = usePathname();
   const { username, logout } = useAuth();
+  const { balance } = useBalance();
+  console.log("balance say", balance);
   const [walletOpen, setWalletOpen] = useState(false);
 
   return (
@@ -20,15 +23,22 @@ export default function Nav() {
           <span className="text-lg font-black tracking-tight">ORB</span>
         </Link>
 
-
         <div className="ml-auto flex items-center gap-4">
-
           {username ? (
-            <button onClick={logout} className="text-[13px] text-muted transition hover:text-fg">
-              {username} · Sign out
+            <button
+              onClick={logout}
+              className="text-[13px] text-muted transition hover:text-fg"
+            >
+              <div className="tnum text-base font-medium">
+                {fmtUsd(balance.equity)}
+              </div>
+              · {username} · Sign out
             </button>
           ) : (
-            <Link href="/login" className="text-[13px] text-muted transition hover:text-fg">
+            <Link
+              href="/login"
+              className="text-[13px] text-muted transition hover:text-fg"
+            >
               Sign in
             </Link>
           )}
@@ -41,7 +51,6 @@ export default function Nav() {
           </button>
         </div>
       </header>
-
       <DepositModal open={walletOpen} onClose={() => setWalletOpen(false)} />
     </div>
   );

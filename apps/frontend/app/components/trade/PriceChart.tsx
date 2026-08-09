@@ -17,7 +17,15 @@ const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
 
 // TradingView lightweight-charts (v5) candlestick chart.
 // REAL: feed setData() from GET /api/v1/klines, then series.update() on ws trade.<symbol>.
-export default function PriceChart({ mid, live, dp }: { mid: number; live: number; dp: number }) {
+export default function PriceChart({
+  mid,
+  live,
+  dp,
+}: {
+  mid: number;
+  live: number;
+  dp: number;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const lastBarRef = useRef<CandlestickData | null>(null);
@@ -41,7 +49,11 @@ export default function PriceChart({ mid, live, dp }: { mid: number; live: numbe
         horzLines: { color: "#1c1c1c" },
       },
       rightPriceScale: { borderColor: "#2a2a2a" },
-      timeScale: { borderColor: "#2a2a2a", timeVisible: true, secondsVisible: false },
+      timeScale: {
+        borderColor: "#2a2a2a",
+        timeVisible: true,
+        secondsVisible: false,
+      },
       crosshair: { mode: CrosshairMode.Normal },
     });
 
@@ -91,7 +103,7 @@ export default function PriceChart({ mid, live, dp }: { mid: number; live: numbe
   }, [live]);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col ">
       <div className="flex items-center gap-1 border-b border-border px-3 py-2 text-xs text-muted">
         {TIMEFRAMES.map((t) => (
           <button

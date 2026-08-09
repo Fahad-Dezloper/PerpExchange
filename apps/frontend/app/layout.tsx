@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Nav from "./components/Nav";
 import { AuthProvider } from "../lib/auth";
+import { BalanceProvider } from "@/lib/balance";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,8 +25,10 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full scrollly flex-col bg-bg text-fg">
         <AuthProvider>
-          {/* <Nav /> */}
-          <main className="flex-1">{children}</main>
+          <BalanceProvider>
+            <Nav />
+            <main className="flex-1">{children}</main>
+          </BalanceProvider>
         </AuthProvider>
       </body>
     </html>

@@ -23,6 +23,7 @@ async function ensureGroup() {
 }
 
 async function handle(event: EngineEvent) {
+  console.log("engine events", event);
   switch (event.type) {
     case "order_created":
       await prisma.order.upsert({
@@ -64,6 +65,18 @@ async function handle(event: EngineEvent) {
           taker_order_id: event.takerOrderId,
           maker_id: event.makerId,
           taker_id: event.takerId,
+        },
+      });
+      break;
+
+    case "balance_update":
+      await prisma.balance.upsert({
+        where: { userId: event.userId },
+        update: { available: event.available, locked: event.locked },
+        create: {
+          userId: event.userId,
+          available: event.available,
+          locked: event.locked,
         },
       });
       break;

@@ -111,4 +111,10 @@ export type EngineEvent =
       takerOrderId: string;
       makerId: string;
       takerId: string;
+    }
+  | {
+      type: "balance_update";
+      userId: string;
+      available: string;
+      locked: string;
     };

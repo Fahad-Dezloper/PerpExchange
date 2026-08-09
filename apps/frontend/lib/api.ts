@@ -59,16 +59,18 @@ const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 // NOTE: auth (signup/signin/signout) is handled by Better Auth via lib/auth-client.
 
 export async function getBalance(): Promise<BalanceDto> {
-  if (USE_MOCK) return (await wait(), BALANCE);
-  return mapBalance(await req<WireBalance>("/api/v1/balance"));
+  return mapBalance(await req<WireBalance>("api/v1/balance"));
 }
 
 export async function deposit(amount: number): Promise<void> {
-  if (USE_MOCK) return void (await wait());
-  await req("/api/v1/onramp", {
-    method: "POST",
-    body: JSON.stringify({ amount: String(amount) }),
-  });
+  try {
+    await req("api/v1/onramp", {
+      method: "POST",
+      body: JSON.stringify({ amount: String(amount) }),
+    });
+  } catch (e) {
+    console.log("Error while onramping", e);
+  }
 }
 
 export async function withdraw(amount: number): Promise<void> {

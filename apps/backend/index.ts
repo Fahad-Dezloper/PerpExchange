@@ -33,7 +33,6 @@ app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
   const userId = req.userId!;
 
   try {
-    // publish and wait for the pubsub to return the response
     const queueLoopbackResponse = await loopback({
       messageType: "onramp",
       userId: userId,
@@ -41,8 +40,6 @@ app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
     });
     console.log(queueLoopbackResponse);
 
-    /// create unread notification add it there.
-    // update it in frontend either directly via pubsub or push from backend
     res.status(200).json({
       message: queueLoopbackResponse,
     });
