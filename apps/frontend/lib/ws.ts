@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { USE_MOCK } from "./api";
-import { makeOrderBook, makeTrades } from "./mock";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001";
 
@@ -14,35 +12,13 @@ export function useChannel<T = any>(
 
   useEffect(() => {
     if (!channel) return;
-
-    if (USE_MOCK) {
-      const [kind, sym] = channel.split(".");
-      const mid = 100 + (sym?.charCodeAt(0) ?? 0);
-      const id = setInterval(() => {
-        if (kind === "trade") {
-          cb.current({
-            price: +(mid + (Math.random() - 0.5) * 2).toFixed(2),
-            qty: +(Math.random() * 2).toFixed(3),
-            side: Math.random() > 0.5 ? "buy" : "sell",
-          } as T);
-        } else if (kind === "depth") {
-          cb.current(makeOrderBook(mid) as T);
-        } else if (kind === "ticker") {
-          cb.current({
-            markPrice: +(mid + (Math.random() - 0.5)).toFixed(2),
-          } as T);
-        }
-      }, 1200);
-      return () => clearInterval(id);
-    }
-
-    // ── REAL ──────────────────────────────────────────────────
     const sock = getSocket();
     const handler = (raw: MessageEvent) => {
       try {
         const { channel: ch, data } = JSON.parse(raw.data);
         if (ch === channel || raw.data.includes(channel))
           cb.current(data ?? JSON.parse(raw.data));
+        console.log("data from ws", data);
       } catch {}
     };
     sock.addEventListener("message", handler);

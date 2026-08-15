@@ -1,28 +1,55 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { makeOrderBook, fmtNum } from "../../../lib/mock";
+import { fmtNum } from "../../../lib/mock";
+import * as api from "@/lib/api";
+import { useChannel } from "@/lib/ws";
 
-// REAL: seed with GET /api/v1/depth, then apply ws depth.<symbol> deltas.
-export default function OrderBook({ mid, dp }: { mid: number; dp: number }) {
-  const [book, setBook] = useState(() => makeOrderBook(mid));
+type Lvl = { price: number; size: number; total: number };
+const cum = (rows: [string, string][], desc: boolean): Lvl[] => {
+  let total = 0;
+  const mapped = rows.map(([p, s]) => ({ price: +p, size: +s }));
+  mapped.sort((a, b) => (desc ? b.price - a.price : a.price - b.price));
+  return mapped.map((l) => ({ ...l, total: (total += l.size) }));
+};
+
+export default function OrderBook({
+  marketId,
+  dp,
+  mid,
+}: {
+  marketId: string | null;
+  dp: number;
+  mid: number;
+}) {
+  const [book, setBook] = useState<{ bids: Lvl[]; asks: Lvl[] }>({
+    bids: [],
+    asks: [],
+  });
 
   useEffect(() => {
-    const id = setInterval(() => setBook(makeOrderBook(mid)), 900);
-    return () => clearInterval(id);
-  }, [mid]);
+    if (!marketId) return;
+    api
+      .getDepth(marketId.toString())
+      .then((d) =>
+        setBook({ bids: cum(d.bids, true), asks: cum(d.asks, false) }),
+      )
+      .catch(() => {});
+  }, [marketId]);
 
+  useChannel<{ bids: [string, string][]; asks: [string, string][] }>(
+    marketId ? `depth.${marketId}` : null,
+    (d) => setBook({ bids: cum(d.bids, true), asks: cum(d.asks, false) }),
+  );
+  console.log("book recived", book);
   // show only the best 10 levels nearest the spread on each side
-  const asks = book.asks.slice(-11); // furthest -> best (best sits by the spread)
-  const bids = book.bids.slice(0, 12); // best -> furthest
+  const asks = book.asks.slice(-11);
+  const bids = book.bids.slice(0, 12);
 
   const maxTotal = useMemo(
     () => Math.max(...asks.map((l) => l.total), ...bids.map((l) => l.total), 1),
     [asks, bids],
   );
-
-  const bestAsk = asks[asks.length - 1]?.price ?? mid;
-  const bestBid = bids[0]?.price ?? mid;
 
   return (
     <div className="flex h-full flex-col">

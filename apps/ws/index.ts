@@ -5,6 +5,8 @@ const redisSub = createClient();
 redisSub.on("error", (e) => console.error("redis error", e));
 await redisSub.connect();
 
+const RELAY = ["trade.", "depth.", "ticker.", "funding."];
+
 const server = Bun.serve<{ userId: string | null }>({
   port: 3001,
 
@@ -59,7 +61,14 @@ const server = Bun.serve<{ userId: string | null }>({
 
 // relay: any engine message on a redis channel → publish to matching ws topic
 await redisSub.pSubscribe("*", (message, channel) => {
-  server.publish(channel, message);
+  if (!RELAY.some((p) => channel.startsWith(p))) return;
+  let data: unknown;
+  try {
+    data = JSON.parse(message);
+  } catch {
+    data = message;
+  }
+  server.publish(channel, JSON.stringify({ channel, data }));
 });
 
 console.log("ws server on :3001");

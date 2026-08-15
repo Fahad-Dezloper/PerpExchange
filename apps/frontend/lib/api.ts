@@ -83,20 +83,7 @@ export async function getMarkets(): Promise<Market[]> {
 }
 
 export async function getDepth(marketId: string): Promise<Depth> {
-  if (USE_MOCK) {
-    const b = makeOrderBook(
-      MARKETS.find((m) => m.symbol === marketId)?.price ?? 100,
-    );
-    return {
-      bids: b.bids.map(
-        (l) => [String(l.price), String(l.size)] as [string, string],
-      ),
-      asks: b.asks.map(
-        (l) => [String(l.price), String(l.size)] as [string, string],
-      ),
-    };
-  }
-  return req(`/api/v1/depth?marketId=${encodeURIComponent(marketId)}`, {
+  return req(`api/v1/depth?marketId=${encodeURIComponent(marketId)}`, {
     method: "POST",
   });
 }

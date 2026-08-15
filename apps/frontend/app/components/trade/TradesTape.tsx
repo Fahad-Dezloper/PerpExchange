@@ -1,25 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { makeTrades, fmtNum, type Trade } from "../../../lib/mock";
+import { useRef, useState } from "react";
+import { fmtNum } from "../../../lib/mock";
+import { useChannel } from "@/lib/ws";
 
-// REAL: ws trade.<symbol>
-export default function TradesTape({ mid, dp }: { mid: number; dp: number }) {
-  const [trades, setTrades] = useState<Trade[]>(() => makeTrades(mid));
+type Trade = { price: number; qty: number; up: boolean; time: string };
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      const side = Math.random() > 0.5 ? "buy" : "sell";
-      const t: Trade = {
-        price: +(mid + (Math.random() - 0.5) * mid * 0.0008).toFixed(dp),
-        size: +(Math.random() * 3 + 0.01).toFixed(3),
-        side,
-        time: new Date().toISOString().slice(11, 19),
-      };
-      setTrades((prev) => [t, ...prev].slice(0, 30));
-    }, 1500);
-    return () => clearInterval(id);
-  }, [mid, dp]);
+export default function TradesTape({
+  marketId,
+  dp,
+}: {
+  marketId: string | null;
+  dp: number;
+}) {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const lastPrice = useRef<number | null>(null);
+
+  useChannel<{ price: string | number; qty: string | number }>(
+    marketId ? `trade.${marketId}` : null,
+    (t) => {
+      const price = Number(t.price);
+      const qty = Number(t.qty);
+      if (!price) return;
+      const up = lastPrice.current == null ? true : price >= lastPrice.current;
+      lastPrice.current = price;
+      const time = new Date().toISOString().slice(11, 19);
+      setTrades((prev) => [{ price, qty, up, time }, ...prev].slice(0, 40));
+    },
+  );
 
   return (
     <div className="flex max-h-64 flex-col">
@@ -31,14 +39,22 @@ export default function TradesTape({ mid, dp }: { mid: number; dp: number }) {
         <span className="text-right">Size</span>
         <span className="text-right">Time</span>
       </div>
-      <div className="overflow-y-auto">
-        {trades.map((t, i) => (
-          <div key={i} className="grid grid-cols-3 px-3 py-[3px] text-xs">
-            <span className={`tnum ${t.side === "buy" ? "text-long" : "text-short"}`}>{fmtNum(t.price, dp)}</span>
-            <span className="tnum text-right">{fmtNum(t.size, 3)}</span>
-            <span className="tnum text-right text-muted">{t.time}</span>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {trades.length === 0 ? (
+          <div className="grid place-items-center py-10 text-xs text-muted">
+            No trades yet
           </div>
-        ))}
+        ) : (
+          trades.map((t, i) => (
+            <div key={i} className="grid grid-cols-3 px-3 py-[3px] text-xs">
+              <span className={`tnum ${t.up ? "text-long" : "text-short"}`}>
+                {fmtNum(t.price, dp)}
+              </span>
+              <span className="tnum text-right">{fmtNum(t.qty, 4)}</span>
+              <span className="tnum text-right text-muted">{t.time}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

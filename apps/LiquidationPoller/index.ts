@@ -10,28 +10,26 @@ const STREAM = "to-engine";
 const INTERVAL_MS = 5_000;
 
 // "BTC-PERP" => "BTCUSDT"
-function toBinanceSymbol(slug: string) {
-  const base = slug.split("-")[0];
-  return `${base}USDT`;
+function toPair(slug: string) {
+  return `${slug.split("-")[0]}-USD`;
 }
 
-async function fetchPrice(symbol: string): Promise<string> {
-  const res = await fetch(
-    `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
-  );
-  if (!res.ok) throw new Error(`binance ${symbol} -> ${res.status}`);
-  const data = (await res.json()) as { price: string };
-  if (!data.price) throw new Error(`no price for ${symbol}`);
-  return data.price;
+async function fetchPrice(pair: string): Promise<string> {
+  const res = await fetch(`https://api.coinbase.com/v2/prices/${pair}/spot`);
+  // console.log("res", res);
+  if (!res.ok) throw new Error(`coinbase ${pair} -> ${res.status}`);
+  const data = (await res.json()) as { data?: { amount?: string } };
+  if (!data.data?.amount) throw new Error(`no price for ${pair}`);
+  return data.data.amount;
 }
 
 async function tick() {
   const markets = await prisma.market.findMany();
 
   for (const m of markets) {
-    const symbol = toBinanceSymbol(m.slug);
+    const pair = toPair(m.slug);
     try {
-      const price = await fetchPrice(symbol);
+      const price = await fetchPrice(pair);
 
       // keeps liquidations ordered vs trades
       await producer.xAdd(STREAM, "*", {
@@ -43,7 +41,7 @@ async function tick() {
         }),
       });
 
-      console.log(`${m.slug} (${symbol}) -> ${price}`);
+      console.log(`${m.slug} (${pair}) -> ${price}`);
     } catch (e) {
       // feed failed -> push nothing, engine keeps last known mark
       // never liquidate on a bad/stale price
