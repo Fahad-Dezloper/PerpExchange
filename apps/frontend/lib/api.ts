@@ -102,8 +102,7 @@ export async function getDepth(marketId: string): Promise<Depth> {
 }
 
 export async function placeOrder(o: PlaceOrder): Promise<PlaceOrderResult> {
-  if (USE_MOCK) return (await wait(), { orderId: "ODR-mock", status: "Open" });
-  return req("/api/v1/order", { method: "POST", body: JSON.stringify(o) });
+  return req("api/v1/order", { method: "POST", body: JSON.stringify(o) });
 }
 
 export async function cancelOrder(

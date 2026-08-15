@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { ArrowUpDown, ChevronDown, Settings2 } from "lucide-react";
-import { BALANCE, fmtUsd } from "../../../lib/mock";
+import { fmtUsd } from "../../../lib/mock";
 import Button from "../ui/Button";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../lib/auth";
+import { useMarkets } from "@/lib/market";
+import { useBalance } from "@/lib/balance";
+import * as api from "@/lib/api";
 
 const QUOTE = "USDT";
 
@@ -21,6 +24,11 @@ export default function OrderForm({
   dp: number;
   maxLeverage: number;
 }) {
+  const { bySymbol } = useMarkets();
+  const { refresh, balance } = useBalance();
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
   const base = symbol.split("-")[0];
 
   const [side, setSide] = useState<"long" | "short">("long");
@@ -53,7 +61,38 @@ export default function OrderForm({
     side === "long"
       ? px * (1 - 1 / leverage + 0.005)
       : px * (1 + 1 / leverage - 0.005);
-  const canSubmit = collateral > 0 && collateral <= BALANCE.available;
+  const canSubmit = collateral > 0 && collateral <= balance.available;
+
+  async function submit() {
+    const marketId = bySymbol[symbol]?.id;
+    if (!marketId) {
+      setMsg("Unknown Market");
+      return;
+    }
+    if (size <= 0) return;
+
+    setSubmitting(true);
+    setMsg(null);
+    try {
+      const res = await api.placeOrder({
+        marketId,
+        side,
+        type,
+        price: px,
+        qty: size.toString(),
+        leverage: String(leverage),
+        slippage: String(slippage),
+      });
+      console.log("responsse", res);
+      setMsg(`Order ${res.status}`);
+      setVal("");
+      await refresh();
+    } catch (e) {
+      setMsg((e as Error).message || "Order failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const swap = () => {
     if (mode === "collateral") {
@@ -86,7 +125,6 @@ export default function OrderForm({
           </button>
         ))}
       </div>
-
       {/* market price + order type */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-panel-2 px-3 py-2.5">
@@ -148,12 +186,11 @@ export default function OrderForm({
           )}
         </div>
       </div>
-
       {/* collateral <-> estimated size */}
       <div className="relative rounded-xl bg-panel-2">
         <AmountRow
           label="Collateral"
-          hint={`Avail ${fmtUsd(BALANCE.available)}`}
+          hint={`Avail ${fmtUsd(balance.available)}`}
           unit={QUOTE}
           value={
             mode === "collateral"
@@ -184,7 +221,6 @@ export default function OrderForm({
           <ArrowUpDown className="h-4 w-4" />
         </button>
       </div>
-
       {/* leverage */}
       <div className="rounded-xl bg-panel-2 px-4 py-3">
         <div className="flex items-center justify-between text-[13px]">
@@ -211,7 +247,6 @@ export default function OrderForm({
           ))}
         </div>
       </div>
-
       {/* summary */}
       <div className="space-y-1.5 px-1 text-[12px]">
         <SummaryRow k="Order Value" v={fmtUsd(notional)} />
@@ -221,7 +256,6 @@ export default function OrderForm({
           v={collateral > 0 ? fmtUsd(liq) : "—"}
         />
       </div>
-
       {/* slippage */}
       <div className="flex items-center justify-between px-1 text-[13px]">
         <span className="text-muted">Slippage</span>
@@ -232,7 +266,6 @@ export default function OrderForm({
           </button>
         </div>
       </div>
-
       {!token ? (
         <Button
           variant="primary"
@@ -246,16 +279,22 @@ export default function OrderForm({
         <Button
           variant="primary"
           size="lg"
-          disabled={!canSubmit}
+          disabled={!canSubmit || submitting}
           className="mt-auto w-full py-3.5"
+          onClick={submit}
         >
-          {collateral <= 0
-            ? "Enter amount"
-            : collateral > BALANCE.available
-              ? "Insufficient balance"
-              : `Open ${side === "long" ? "Long" : "Short"}`}
+          {submitting
+            ? "Placing..."
+            : collateral <= 0
+              ? "Enter amount"
+              : collateral > balance.available
+                ? "Insufficient balance"
+                : `Open ${side === "long" ? "Long" : "Short"}`}
         </Button>
       )}
+      {msg && (
+        <p className="mt-2 text-center text-[12px] text-muted">{msg}</p>
+      )}{" "}
     </div>
   );
 }

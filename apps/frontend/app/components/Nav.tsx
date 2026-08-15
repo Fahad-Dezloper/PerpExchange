@@ -13,7 +13,6 @@ export default function Nav() {
   const path = usePathname();
   const { username, logout } = useAuth();
   const { balance } = useBalance();
-  console.log("balance say", balance);
   const [walletOpen, setWalletOpen] = useState(false);
 
   return (
@@ -30,7 +29,8 @@ export default function Nav() {
               className="text-[13px] text-muted transition hover:text-fg"
             >
               <div className="tnum text-base font-medium">
-                {fmtUsd(balance.equity)}
+                equity - {fmtUsd(balance.equity)} | available -{" "}
+                {fmtUsd(balance.available)}
               </div>
               · {username} · Sign out
             </button>
