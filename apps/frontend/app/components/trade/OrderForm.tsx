@@ -9,6 +9,7 @@ import { useAuth } from "../../../lib/auth";
 import { useMarkets } from "@/lib/market";
 import { useBalance } from "@/lib/balance";
 import * as api from "@/lib/api";
+import { usePositons } from "@/lib/positions";
 
 const QUOTE = "USDT";
 
@@ -28,6 +29,7 @@ export default function OrderForm({
   const { refresh, balance } = useBalance();
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { refresh: refreshPositions } = usePositons();
 
   const base = symbol.split("-")[0];
 
@@ -86,7 +88,7 @@ export default function OrderForm({
       console.log("responsse", res);
       setMsg(`Order ${res.status}`);
       setVal("");
-      await refresh();
+      await Promise.all([refresh(), refreshPositions()]);
     } catch (e) {
       setMsg((e as Error).message || "Order failed");
     } finally {

@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { Plus, Settings2, X } from "lucide-react";
-import { POSITIONS, OPEN_ORDERS, fmtUsd, fmtNum } from "../../../lib/mock";
+import { OPEN_ORDERS, fmtUsd, fmtNum } from "../../../lib/mock";
 import TokenIcon from "../TokenIcon";
 import Button from "../ui/Button";
+import { usePositons } from "@/lib/positions";
+import { useMarkets } from "@/lib/market";
+import { useBalance } from "@/lib/balance";
+import * as api from "@/lib/api";
 
 const ALL_TABS = [
   "Positions",
@@ -16,7 +20,6 @@ const ALL_TABS = [
 ] as const;
 type PanelTab = (typeof ALL_TABS)[number];
 
-// optional position columns (Market + PnL + Close are always shown)
 const POS_COLUMNS = [
   { key: "side", label: "Side", right: false },
   { key: "size", label: "Size", right: true },
@@ -38,17 +41,46 @@ export default function PositionsPanel({
   compact?: boolean;
   defaultTab?: PanelTab;
 }) {
+  const { positions, refresh: refreshPositions } = usePositons();
+  const { bySymbol } = useMarkets();
+  const { refresh: refreshBalance } = useBalance();
+  const [closing, setClosing] = useState<string | null>(null);
+
   const [tabs, setTabs] = useState<PanelTab[]>(initialTabs);
   const [tab, setTab] = useState<PanelTab>(
-    defaultTab && initialTabs.includes(defaultTab) ? defaultTab : initialTabs[0],
+    defaultTab && initialTabs.includes(defaultTab)
+      ? defaultTab
+      : initialTabs[0],
   );
   const [addOpen, setAddOpen] = useState(false);
   const [colsOpen, setColsOpen] = useState(false);
   const [cols, setCols] = useState<Set<ColKey>>(
-    new Set(compact ? (["side", "size"] as ColKey[]) : POS_COLUMNS.map((c) => c.key)),
+    new Set(
+      compact ? (["side", "size"] as ColKey[]) : POS_COLUMNS.map((c) => c.key),
+    ),
   );
 
   const available = ALL_TABS.filter((t) => !tabs.includes(t));
+
+  async function closePosition(p: (typeof positions)[number]) {
+    const marketId = bySymbol[p.symbol]?.id;
+    if (!marketId) return;
+    setClosing(p.symbol);
+    try {
+      await api.placeOrder({
+        marketId,
+        side: p.side === "Long" ? "short" : "long",
+        type: "market",
+        price: p.mark,
+        qty: p.size.toString(),
+        leverage: String(p.leverage),
+        slippage: "0.5",
+      });
+      await Promise.all([refreshPositions(), refreshBalance()]);
+    } finally {
+      setClosing(null);
+    }
+  }
 
   const addTab = (t: PanelTab) => {
     setTabs((p) => [...p, t]);
@@ -77,18 +109,27 @@ export default function PositionsPanel({
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-3">
         <div className="flex items-center gap-3 overflow-x-auto py-2 text-[13px]">
           {tabs.map((t) => {
-            const count = t === "Positions" ? POSITIONS.length : t === "Open Orders" ? OPEN_ORDERS.length : null;
+            const count =
+              t === "Positions"
+                ? positions.length
+                : t === "Open Orders"
+                  ? OPEN_ORDERS.length
+                  : null;
             const active = tab === t;
             return (
               <div key={t} className="group flex shrink-0 items-center">
                 <button
                   onClick={() => setTab(t)}
                   className={`-mb-px whitespace-nowrap border-b-2 py-1 transition ${
-                    active ? "border-fg text-fg" : "border-transparent text-muted hover:text-fg"
+                    active
+                      ? "border-fg text-fg"
+                      : "border-transparent text-muted hover:text-fg"
                   }`}
                 >
                   {t}
-                  {count != null && <span className="text-muted"> ({count})</span>}
+                  {count != null && (
+                    <span className="text-muted"> ({count})</span>
+                  )}
                 </button>
                 {editableTabs && tabs.length > 1 && (
                   <button
@@ -107,12 +148,19 @@ export default function PositionsPanel({
         {/* add tab — outside the scrolling tabs container so its menu isn't clipped */}
         {editableTabs && available.length > 0 && (
           <div className="relative shrink-0">
-            <button onClick={() => setAddOpen((o) => !o)} className="text-muted p-2 rounded-lg hover:text-fg hover:bg-primary" title="Add tab">
+            <button
+              onClick={() => setAddOpen((o) => !o)}
+              className="text-muted p-2 rounded-lg hover:text-fg hover:bg-primary"
+              title="Add tab"
+            >
               <Plus className="h-4 w-4" />
             </button>
             {addOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setAddOpen(false)} />
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setAddOpen(false)}
+                />
                 <div className="absolute left-0 top-7 z-20 w-44 rounded-lg border border-border bg-panel p-1 shadow-xl">
                   {available.map((t) => (
                     <button
@@ -132,14 +180,23 @@ export default function PositionsPanel({
         {/* column manager (positions tab) */}
         {tab === "Positions" && (
           <div className="relative ml-auto shrink-0">
-            <button onClick={() => setColsOpen((o) => !o)} className="text-muted hover:text-fg" title="Columns">
+            <button
+              onClick={() => setColsOpen((o) => !o)}
+              className="text-muted hover:text-fg"
+              title="Columns"
+            >
               <Settings2 className="h-4 w-4" />
             </button>
             {colsOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setColsOpen(false)} />
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setColsOpen(false)}
+                />
                 <div className="absolute right-0 top-6 z-20 w-40 rounded-lg border border-border bg-panel p-1 shadow-xl">
-                  <div className="px-2 py-1 text-[11px] text-subtle">Columns</div>
+                  <div className="px-2 py-1 text-[11px] text-subtle">
+                    Columns
+                  </div>
                   {POS_COLUMNS.map((c) => (
                     <button
                       key={c.key}
@@ -148,12 +205,20 @@ export default function PositionsPanel({
                     >
                       <span
                         className={`grid h-3.5 w-3.5 place-items-center rounded-[3px] border ${
-                          cols.has(c.key) ? "border-accent bg-accent text-white" : "border-border"
+                          cols.has(c.key)
+                            ? "border-accent bg-accent text-white"
+                            : "border-border"
                         }`}
                       >
-                        {cols.has(c.key) && <span className="text-[9px] leading-none">✓</span>}
+                        {cols.has(c.key) && (
+                          <span className="text-[9px] leading-none">✓</span>
+                        )}
                       </span>
-                      <span className={cols.has(c.key) ? "text-fg" : "text-muted"}>{c.label}</span>
+                      <span
+                        className={cols.has(c.key) ? "text-fg" : "text-muted"}
+                      >
+                        {c.label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -164,51 +229,91 @@ export default function PositionsPanel({
       </div>
 
       {/* body */}
-      <div className={`overflow-x-auto ${compact ? "min-h-0 flex-1 overflow-y-auto" : ""}`}>
+      <div
+        className={`overflow-x-auto ${compact ? "min-h-0 flex-1 overflow-y-auto" : ""}`}
+      >
         {tab === "Positions" ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted">
                 <th className="px-3 py-2.5 font-medium">Market</th>
                 {shownCols.map((c) => (
-                  <th key={c.key} className={`px-3 py-2.5 font-medium ${c.right ? "text-right" : ""}`}>
+                  <th
+                    key={c.key}
+                    className={`px-3 py-2.5 font-medium ${c.right ? "text-right" : ""}`}
+                  >
                     {c.label}
                   </th>
                 ))}
-                <th className="px-3 py-2.5 text-right font-medium">PnL (ROE)</th>
+                <th className="px-3 py-2.5 text-right font-medium">
+                  PnL (ROE)
+                </th>
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>
             <tbody>
-              {POSITIONS.map((p) => (
+              {positions.map((p) => (
                 <tr key={p.symbol} className="border-t border-border/60">
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <TokenIcon symbol={p.symbol} size={22} />
-                      <span className="font-medium">{p.symbol.split("-")[0]}</span>
+                      <span className="font-medium">
+                        {p.symbol.split("-")[0]}
+                      </span>
                     </div>
                   </td>
                   {cols.has("side") && (
                     <td className="px-3 py-2.5">
                       <span
                         className={`rounded px-1.5 py-0.5 text-xs ${
-                          p.side === "Long" ? "bg-long/15 text-long" : "bg-short/15 text-short"
+                          p.side === "Long"
+                            ? "bg-long/15 text-long"
+                            : "bg-short/15 text-short"
                         }`}
                       >
                         {p.side} {p.leverage}×
                       </span>
                     </td>
                   )}
-                  {cols.has("size") && <td className="tnum px-3 py-2.5 text-right">{p.size}</td>}
-                  {cols.has("entry") && <td className="tnum px-3 py-2.5 text-right">{fmtUsd(p.entry)}</td>}
-                  {cols.has("mark") && <td className="tnum px-3 py-2.5 text-right">{fmtUsd(p.mark)}</td>}
-                  {cols.has("liq") && <td className="tnum px-3 py-2.5 text-right text-warn">{fmtUsd(p.liq)}</td>}
-                  {cols.has("margin") && <td className="tnum px-3 py-2.5 text-right">{fmtUsd(p.margin)}</td>}
-                  <td className={`tnum px-3 py-2.5 text-right ${p.pnl >= 0 ? "text-long" : "text-short"}`}>
-                    {p.pnl >= 0 ? "+" : ""}{fmtUsd(p.pnl)} <span className="text-xs">({p.pnlPct.toFixed(1)}%)</span>
+                  {cols.has("size") && (
+                    <td className="tnum px-3 py-2.5 text-right">{p.size}</td>
+                  )}
+                  {cols.has("entry") && (
+                    <td className="tnum px-3 py-2.5 text-right">
+                      {fmtUsd(p.entry)}
+                    </td>
+                  )}
+                  {cols.has("mark") && (
+                    <td className="tnum px-3 py-2.5 text-right">
+                      {fmtUsd(p.mark)}
+                    </td>
+                  )}
+                  {cols.has("liq") && (
+                    <td className="tnum px-3 py-2.5 text-right text-warn">
+                      {fmtUsd(p.liq)}
+                    </td>
+                  )}
+                  {cols.has("margin") && (
+                    <td className="tnum px-3 py-2.5 text-right">
+                      {fmtUsd(p.margin)}
+                    </td>
+                  )}
+                  <td
+                    className={`tnum px-3 py-2.5 text-right ${p.pnl >= 0 ? "text-long" : "text-short"}`}
+                  >
+                    {p.pnl >= 0 ? "+" : ""}
+                    {fmtUsd(p.pnl)}{" "}
+                    <span className="text-xs">({p.pnlPct.toFixed(1)}%)</span>
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    <Button variant="short" size="sm">Close</Button>
+                    <Button
+                      variant="short"
+                      size="sm"
+                      disabled={closing === p.symbol}
+                      onClick={() => closePosition(p)}
+                    >
+                      {closing === p.symbol ? "Closing…" : "Close"}
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -223,32 +328,56 @@ export default function PositionsPanel({
                 {!compact && <th className="px-3 py-2.5 font-medium">Type</th>}
                 <th className="px-3 py-2.5 text-right font-medium">Price</th>
                 <th className="px-3 py-2.5 text-right font-medium">Size</th>
-                {!compact && <th className="px-3 py-2.5 text-right font-medium">Filled</th>}
-                {!compact && <th className="px-3 py-2.5 text-right font-medium">Time</th>}
+                {!compact && (
+                  <th className="px-3 py-2.5 text-right font-medium">Filled</th>
+                )}
+                {!compact && (
+                  <th className="px-3 py-2.5 text-right font-medium">Time</th>
+                )}
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {OPEN_ORDERS.map((o, i) => (
                 <tr key={i} className="border-t border-border/60">
-                  <td className="px-3 py-2.5 font-medium">{o.symbol.split("-")[0]}</td>
-                  <td className={`px-3 py-2.5 capitalize ${o.side === "long" ? "text-long" : "text-short"}`}>{o.side}</td>
-                  {!compact && <td className="px-3 py-2.5 text-muted">{o.type}</td>}
-                  <td className="tnum px-3 py-2.5 text-right">{fmtUsd(o.price)}</td>
+                  <td className="px-3 py-2.5 font-medium">
+                    {o.symbol.split("-")[0]}
+                  </td>
+                  <td
+                    className={`px-3 py-2.5 capitalize ${o.side === "long" ? "text-long" : "text-short"}`}
+                  >
+                    {o.side}
+                  </td>
+                  {!compact && (
+                    <td className="px-3 py-2.5 text-muted">{o.type}</td>
+                  )}
+                  <td className="tnum px-3 py-2.5 text-right">
+                    {fmtUsd(o.price)}
+                  </td>
                   <td className="tnum px-3 py-2.5 text-right">{o.size}</td>
                   {!compact && (
-                    <td className="tnum px-3 py-2.5 text-right text-muted">{fmtNum((o.filled / o.size) * 100, 0)}%</td>
+                    <td className="tnum px-3 py-2.5 text-right text-muted">
+                      {fmtNum((o.filled / o.size) * 100, 0)}%
+                    </td>
                   )}
-                  {!compact && <td className="tnum px-3 py-2.5 text-right text-muted">{o.time}</td>}
+                  {!compact && (
+                    <td className="tnum px-3 py-2.5 text-right text-muted">
+                      {o.time}
+                    </td>
+                  )}
                   <td className="px-3 py-2.5 text-right">
-                    <Button variant="outline" size="sm">Cancel</Button>
+                    <Button variant="outline" size="sm">
+                      Cancel
+                    </Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <div className="grid place-items-center py-14 text-sm text-muted">No {tab.toLowerCase()} yet.</div>
+          <div className="grid place-items-center py-14 text-sm text-muted">
+            No {tab.toLowerCase()} yet.
+          </div>
         )}
       </div>
     </div>

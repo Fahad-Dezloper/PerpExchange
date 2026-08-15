@@ -5,6 +5,7 @@ import Nav from "./components/Nav";
 import { AuthProvider } from "../lib/auth";
 import { BalanceProvider } from "@/lib/balance";
 import { MarketProvider } from "@/lib/market";
+import PositionProvider from "@/lib/positions";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,8 +29,10 @@ export default function RootLayout({
         <AuthProvider>
           <BalanceProvider>
             <MarketProvider>
-              <Nav />
-              <main className="flex-1">{children}</main>
+              <PositionProvider>
+                <Nav />
+                <main className="flex-1">{children}</main>
+              </PositionProvider>
             </MarketProvider>
           </BalanceProvider>
         </AuthProvider>

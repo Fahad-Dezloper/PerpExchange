@@ -109,7 +109,6 @@ export async function cancelOrder(
   orderId: string,
   marketId: string,
 ): Promise<void> {
-  if (USE_MOCK) return void (await wait());
   await req("/api/v1/order/cancel", {
     method: "POST",
     body: JSON.stringify({ orderId, marketId }),
@@ -117,8 +116,7 @@ export async function cancelOrder(
 }
 
 export async function getPositions(): Promise<Position[]> {
-  if (USE_MOCK) return (await wait(), POSITIONS);
-  const r = await req<{ positions: WirePosition[] }>("/api/v1/positions");
+  const r = await req<{ positions: WirePosition[] }>("api/v1/positions");
   return r.positions.map((p) => mapPositon(p));
 }
 
