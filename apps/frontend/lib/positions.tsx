@@ -11,6 +11,7 @@ import { useAuth } from "./auth";
 import { useMarkets } from "./market";
 import * as api from "@/lib/api";
 import { Position } from "./types";
+import { onReconnect } from "./ws";
 
 type PositionCtx = {
   positions: Position[];
@@ -41,7 +42,7 @@ const PositionProvider = ({ children }: { children: React.ReactNode }) => {
   }, [token]);
 
   useEffect(() => {
-    refresh();
+    onReconnect(refresh);
   }, [refresh]);
 
   const byId = Object.fromEntries(markets.map((m) => [m.id, m.symbol]));

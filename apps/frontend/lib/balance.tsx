@@ -10,6 +10,7 @@ import {
 import { BalanceDto } from "./types";
 import { useAuth } from "./auth";
 import * as api from "./api";
+import { onReconnect } from "./ws";
 
 const ZERO: BalanceDto = { available: 0, locked: 0, equity: 0, unrealized: 0 };
 
@@ -42,7 +43,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    refresh();
+    onReconnect(refresh);
   }, [refresh]);
 
   return (

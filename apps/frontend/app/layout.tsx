@@ -11,6 +11,7 @@ import { OrdersProvider } from "@/lib/order";
 import { PricesProvider } from "@/lib/price";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toast";
+import ConnectionWatcher from "./components/ConnectionWatcher";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -57,6 +58,7 @@ export default function RootLayout({
           </BalanceProvider>
         </AuthProvider>
         <Toaster />
+        <ConnectionWatcher />
       </body>
     </html>
   );

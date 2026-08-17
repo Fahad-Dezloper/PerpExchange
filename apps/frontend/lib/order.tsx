@@ -11,6 +11,7 @@ import { OpenOrder } from "./mock";
 import { useAuth } from "./auth";
 import { useMarkets } from "./market";
 import * as api from "@/lib/api";
+import { onReconnect } from "./ws";
 
 type OrdersCtx = {
   orders: OpenOrder[];
@@ -40,7 +41,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   useEffect(() => {
-    refresh();
+    onReconnect(refresh);
   }, [refresh]);
 
   const byId = Object.fromEntries(markets.map((m) => [m.id, m.symbol]));

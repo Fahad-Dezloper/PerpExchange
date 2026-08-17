@@ -66,6 +66,7 @@ export default function OrderForm({
   const canSubmit = collateral > 0 && collateral <= balance.available;
 
   async function submit() {
+    if (submitting) return;
     const marketId = bySymbol[symbol]?.id;
     if (!marketId) {
       notify.error("Unknown market", `No market found for ${symbol}.`);
@@ -93,10 +94,7 @@ export default function OrderForm({
       );
       await Promise.all([refresh(), refreshPositions()]);
     } catch (e) {
-      notify.error(
-        "Order failed",
-        e instanceof Error ? e.message : String(e),
-      );
+      notify.error("Order failed", e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
     }
