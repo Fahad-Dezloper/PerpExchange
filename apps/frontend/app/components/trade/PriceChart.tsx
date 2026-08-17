@@ -12,16 +12,27 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { makeCandles, fmtNum } from "../../../lib/mock";
+import { getKlines } from "@/lib/api";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
+const GRANULARITY: Record<string, number> = {
+  "1m": 60,
+  "5m": 300,
+  "15m": 900,
+  "1h": 3600,
+  "4h": 21600,
+  "1D": 86400,
+};
 
 // TradingView lightweight-charts (v5) candlestick chart.
 // REAL: feed setData() from GET /api/v1/klines, then series.update() on ws trade.<symbol>.
 export default function PriceChart({
+  marketId,
   mid,
   live,
   dp,
 }: {
+  marketId: string | null;
   mid: number;
   live: number;
   dp: number;
@@ -31,10 +42,10 @@ export default function PriceChart({
   const lastBarRef = useRef<CandlestickData | null>(null);
   const [tf, setTf] = useState<(typeof TIMEFRAMES)[number]>("5m");
 
-  // build chart once per market (mid) / precision (dp)
+  // build chart + seed real candles per (market, timeframe, precision)
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || !marketId) return;
 
     const chart: IChartApi = createChart(el, {
       autoSize: true,
@@ -65,42 +76,52 @@ export default function PriceChart({
       borderVisible: false,
       priceFormat: { type: "price", precision: dp, minMove: Math.pow(10, -dp) },
     });
-
-    // seed candles (deterministic mock)
-    const raw = makeCandles(mid, 120);
-    const now = Math.floor(Date.now() / 1000);
-    const step = 60; // 1m bars
-    const data: CandlestickData[] = raw.map((c, i) => ({
-      time: (now - (raw.length - 1 - i) * step) as UTCTimestamp,
-      open: c.o,
-      high: c.h,
-      low: c.l,
-      close: c.c,
-    }));
-
-    series.setData(data);
-    chart.timeScale().fitContent();
-
     seriesRef.current = series;
-    lastBarRef.current = data[data.length - 1];
 
-    return () => chart.remove();
-  }, [mid, dp]);
+    let alive = true;
+    getKlines(marketId, tf)
+      .then((candles) => {
+        if (!alive) return;
+        const data: CandlestickData[] = candles.map((c) => ({
+          time: c.time as UTCTimestamp,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }));
+        series.setData(data);
+        chart.timeScale().fitContent();
+        lastBarRef.current = data[data.length - 1] ?? null;
+      })
+      .catch(() => {});
 
-  // stream the live price into the last candle
+    return () => {
+      alive = false;
+      chart.remove();
+    };
+  }, [marketId, tf, dp]);
+
   useEffect(() => {
     const series = seriesRef.current;
+    if (!series || !live) return;
+
+    const g = GRANULARITY[tf];
+    const bucket = (Math.floor(Date.now() / 1000 / g) * g) as UTCTimestamp;
     const last = lastBarRef.current;
-    if (!series || !last) return;
-    const updated: CandlestickData = {
-      ...last,
-      close: live,
-      high: Math.max(last.high, live),
-      low: Math.min(last.low, live),
-    };
-    series.update(updated);
-    lastBarRef.current = updated;
-  }, [live]);
+
+    const bar: CandlestickData =
+      !last || bucket > (last.time as number)
+        ? { time: bucket, open: live, high: live, low: live, close: live }
+        : {
+            ...last,
+            close: live,
+            high: Math.max(last.high, live),
+            low: Math.min(last.low, live),
+          };
+
+    series.update(bar);
+    lastBarRef.current = bar;
+  }, [live, tf]);
 
   return (
     <div className="flex flex-col ">
@@ -117,7 +138,6 @@ export default function PriceChart({
         <span className="tnum ml-auto text-fg">{fmtNum(live, dp)}</span>
       </div>
 
-      {/* lightweight-charts mounts its canvas here */}
       <div ref={containerRef} className="h-[360px] w-full" />
     </div>
   );

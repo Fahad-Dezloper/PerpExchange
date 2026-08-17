@@ -175,3 +175,11 @@ export function mapOrder(
     time: new Date(o.createdAt).toISOString().slice(11, 19),
   };
 }
+
+export type Candle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};

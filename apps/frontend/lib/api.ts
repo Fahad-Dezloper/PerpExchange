@@ -9,6 +9,7 @@ import {
 } from "./mock";
 import {
   BalanceDto,
+  Candle,
   Depth,
   mapBalance,
   mapMarket,
@@ -111,4 +112,14 @@ export async function getPositions(): Promise<Position[]> {
 export async function getOpenOrders(): Promise<OpenOrder[]> {
   const r = await req<{ orders: WireOpenOrder[] }>("api/v1/orders");
   return r.orders.map(mapOpenOrder);
+}
+
+export async function getKlines(
+  marketId: string,
+  interval: string,
+): Promise<Candle[]> {
+  const r = await req<{ candles: Candle[] }>(
+    `api/v1/klines?marketId=${encodeURIComponent(marketId)}&interval=${encodeURIComponent(interval)}`,
+  );
+  return r.candles;
 }

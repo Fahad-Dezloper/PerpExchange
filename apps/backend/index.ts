@@ -5,6 +5,7 @@ import { initQueue, loopback } from "./loopback";
 import { ulid } from "ulid";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./auth";
+import { error } from "better-auth/api";
 
 const app = express();
 
@@ -27,6 +28,19 @@ app.use((req, res, next) => {
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
 app.use(express.json());
+
+const GRANULARITYL: Record<string, number> = {
+  "1m": 60,
+  "5m": 300,
+  "15m": 900,
+  "1h": 3600,
+  "4h": 21600,
+  "1D": 86400,
+};
+
+function toCoinbaseProduct(slug: string) {
+  return `${slug.split("-")[0]?.toUpperCase()}-USD`;
+}
 
 /// User
 app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
@@ -224,6 +238,38 @@ app.get("/api/v1/orders", authMiddleware, async (req, res) => {
     res.status(200).json(result);
   } catch {
     res.status(504).json({ message: "Engine timeout" });
+  }
+});
+
+app.get("/api/v1/klines", async (req, res) => {
+  try {
+    const marketId = String(req.query.marketId ?? "");
+    const interval = String(req.query.interval ?? "5m");
+    const market = await prisma.market.findUnique({ where: { id: marketId } });
+    if (!market) return res.status(404).json({ error: "market not found" });
+
+    const product = toCoinbaseProduct(market.slug);
+    const granularity = GRANULARITYL[interval] ?? 300;
+
+    const r = await fetch(
+      `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${granularity}`,
+      { headers: { "User-Agent": "perp-exchange" } },
+    );
+    if (!r.ok) return res.status(502).json({ error: `coinbase ${r.status}` });
+
+    const rows = (await r.json()) as [number, number, number, number, number][];
+    const candles = rows
+      .map(([time, low, high, open, close]) => ({
+        time,
+        open,
+        high,
+        low,
+        close,
+      }))
+      .sort((a, b) => a.time - b.time); // ascending order
+    res.json({ candles });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 });
 

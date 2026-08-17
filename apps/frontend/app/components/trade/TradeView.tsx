@@ -54,7 +54,7 @@ export default function TradeView({ symbol }: { symbol: string }) {
           <MarketHeader symbol={symbol} price={price} dir={dir} />
           <div className="grid min-w-0 grid-cols-[260px_minmax(0,1fr)] gap-2">
             <BookTrades marketId={marketId} mid={price} dp={dp} />
-            <ChartTrades mid={price} live={price} dp={dp} />
+            <ChartTrades marketId={marketId} mid={price} live={price} dp={dp} />
           </div>
         </div>
 
