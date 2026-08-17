@@ -194,4 +194,23 @@ impl Orderbook {
             .collect();
         (bids, asks)
     }
+
+    pub fn open_orders_for(&self, user_id: &str) -> Vec<serde_json::Value> {
+        let mut out = Vec::new();
+        for (side, book) in [("Bid", &self.bids), ("Ask", &self.asks)] {
+            for (price, level) in book.iter() {
+                for o in level.iter().filter(|o| o.user_id == user_id) {
+                    out.push(serde_json::json!({
+                        "orderId": o.order_id,
+                        "marketId": self.market_id,
+                        "side": side,
+                        "price": price.to_string(),
+                        "qty": o.qty.to_string(),
+                        "filled": o.filled.to_string()
+                    }));
+                }
+            }
+        }
+        out
+    }
 }

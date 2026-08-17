@@ -41,6 +41,7 @@ export async function initQueue() {
 }
 
 export function loopback(message: ToEngine, timeoutMs = 10_000): Promise<any> {
+  console.log("cancel reached here", message);
   return new Promise(async (resolve, reject) => {
     const requestId = newRequesId();
     console.log("New reqeust id", requestId);

@@ -35,6 +35,8 @@ export type Market = {
 };
 
 export type OpenOrder = {
+  orderId: string;
+  marketId: string;
   symbol: string;
   side: "long" | "short";
   type: "Limit";
@@ -94,6 +96,29 @@ export type WireOrder = {
   createdAt: string;
 };
 
+export type WireOpenOrder = {
+  orderId: string;
+  marketId: string;
+  side: "Bid" | "Ask";
+  price: string;
+  qty: string;
+  filled: string;
+};
+
+export function mapOpenOrder(o: WireOpenOrder): OpenOrder {
+  return {
+    orderId: o.orderId,
+    marketId: o.marketId,
+    symbol: o.marketId,
+    side: o.side === "Bid" ? "long" : "short",
+    type: "Limit",
+    price: +o.price,
+    size: +o.qty,
+    filled: +o.filled,
+    time: "",
+  };
+}
+
 export function mapBalance(b: WireBalance): BalanceDto {
   const available = +b.available;
   const locked = +b.locked;
@@ -139,6 +164,8 @@ export function mapOrder(
   resolveSymbol: (marketId: string) => string = (id) => id,
 ): OpenOrder {
   return {
+    orderId: o.id,
+    marketId: o.market_id,
     symbol: resolveSymbol(o.market_id),
     side: o.side === "Bid" ? "long" : "short",
     type: "Limit",

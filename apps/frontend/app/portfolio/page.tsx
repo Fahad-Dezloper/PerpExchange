@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { BALANCE, POSITIONS, OPEN_ORDERS, fmtUsd } from "../../lib/mock";
+import { BALANCE, POSITIONS, fmtUsd } from "../../lib/mock";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth";
+import { useOrders } from "@/lib/order";
 
 const HISTORY = [
   {
@@ -47,6 +48,7 @@ const HISTORY = [
 export default function PortfolioPage() {
   const totalPnl = POSITIONS.reduce((s, p) => s + p.pnl, 0);
   const { token } = useAuth();
+  const { orders } = useOrders();
   const router = useRouter();
   useEffect(() => {
     if (token === null) router.replace("/login");
@@ -152,7 +154,7 @@ export default function PortfolioPage() {
             </tr>
           </thead>
           <tbody>
-            {OPEN_ORDERS.map((o, i) => (
+            {orders.map((o, i) => (
               <tr key={i} className="border-t border-border/60">
                 <td className="px-4 py-3 font-medium">{o.symbol}</td>
                 <td

@@ -1,7 +1,6 @@
 import {
   MARKETS,
   POSITIONS,
-  OPEN_ORDERS,
   BALANCE,
   makeOrderBook,
   type Market,
@@ -13,12 +12,14 @@ import {
   Depth,
   mapBalance,
   mapMarket,
+  mapOpenOrder,
   mapOrder,
   mapPositon,
   PlaceOrder,
   PlaceOrderResult,
   WireBalance,
   WireMarket,
+  WireOpenOrder,
   WireOrder,
   WirePosition,
 } from "./types";
@@ -96,7 +97,7 @@ export async function cancelOrder(
   orderId: string,
   marketId: string,
 ): Promise<void> {
-  await req("/api/v1/order/cancel", {
+  await req("api/v1/order/cancel", {
     method: "POST",
     body: JSON.stringify({ orderId, marketId }),
   });
@@ -108,7 +109,6 @@ export async function getPositions(): Promise<Position[]> {
 }
 
 export async function getOpenOrders(): Promise<OpenOrder[]> {
-  if (USE_MOCK) return (await wait(), OPEN_ORDERS);
-  const r = await req<WireOrder[]>("/api/v1/orders?open=true");
-  return r.map((o) => mapOrder(o));
+  const r = await req<{ orders: WireOpenOrder[] }>("api/v1/orders");
+  return r.orders.map(mapOpenOrder);
 }

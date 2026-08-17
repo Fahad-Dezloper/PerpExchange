@@ -452,7 +452,7 @@ impl Engine {
         user_id: &str,
         market_id: &str,
     ) -> serde_json::Value {
-        println!("market ids: {:?}", self.orderbooks.keys());
+        println!("cancel market id: {:?}", self.orderbooks.keys());
         let book = match self.orderbooks.get_mut(market_id) {
             Some(b) => b,
             None => return serde_json::json!({"ok": false, "error": "no market"}),
@@ -657,5 +657,14 @@ impl Engine {
             "rate": rate.to_string(),
             "payments": events
         })
+    }
+
+    pub fn get_open_orders(&self, user_id: &str) -> serde_json::Value {
+        let orders: Vec<_> = self
+            .orderbooks
+            .values()
+            .flat_map(|b| b.open_orders_for(user_id))
+            .collect();
+        serde_json::json!({ "ok": true, "orders": orders })
     }
 }

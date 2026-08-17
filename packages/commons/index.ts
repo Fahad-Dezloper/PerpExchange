@@ -56,7 +56,8 @@ export type ToEngine =
   | {
       messageType: "funding";
       marketId: string;
-    };
+    }
+  | { messageType: "get_open_orders"; userId: string };
 
 // order types
 export type OpenOrder = {
@@ -117,4 +118,8 @@ export type EngineEvent =
       userId: string;
       available: string;
       locked: string;
+    }
+  | {
+      messageType: "get_open_orders";
+      userId: string;
     };

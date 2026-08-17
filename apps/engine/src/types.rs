@@ -76,4 +76,9 @@ pub enum ToEngine {
         #[serde(rename = "marketId")]
         market_id: String,
     },
+
+    GetOpenOrders {
+        #[serde(rename = "userId")]
+        user_id: String,
+    },
 }

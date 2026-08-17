@@ -215,5 +215,17 @@ app.get("/api/v1/positions", authMiddleware, async (req, res) => {
   }
 });
 
+app.get("/api/v1/orders", authMiddleware, async (req, res) => {
+  try {
+    const result = await loopback({
+      messageType: "get_open_orders",
+      userId: req.userId!,
+    });
+    res.status(200).json(result);
+  } catch {
+    res.status(504).json({ message: "Engine timeout" });
+  }
+});
+
 await initQueue();
 app.listen(3000);

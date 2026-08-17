@@ -59,3 +59,10 @@ bun run index.ts
 cd /Users/dezloper/Desktop/PerpExchange/apps/test
 bun run test
 bun test --timeout 30000 
+
+./dev.sh              # infra + all 7 services, one tab each
+./dev.sh --setup      # also bun install + prisma generate/migrate first
+./dev.sh --tmux       # tmux windows instead of iTerm tabs
+./dev.sh --no-front   # skip the Next.js tab
+./dev.sh --infra      # just Redis + Postgres
+./dev.sh --stop       # stop containers, free ports 3000/3001/3002

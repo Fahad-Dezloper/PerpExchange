@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Plus, Settings2, X } from "lucide-react";
-import { OPEN_ORDERS, fmtUsd, fmtNum } from "../../../lib/mock";
+import { fmtUsd, fmtNum } from "../../../lib/mock";
 import TokenIcon from "../TokenIcon";
 import Button from "../ui/Button";
 import { usePositons } from "@/lib/positions";
 import { useMarkets } from "@/lib/market";
 import { useBalance } from "@/lib/balance";
 import * as api from "@/lib/api";
+import { useOrders } from "@/lib/order";
 
 const ALL_TABS = [
   "Positions",
@@ -45,6 +46,7 @@ export default function PositionsPanel({
   const { bySymbol } = useMarkets();
   const { refresh: refreshBalance } = useBalance();
   const [closing, setClosing] = useState<string | null>(null);
+  const { orders, refresh: refreshOrders } = useOrders();
 
   const [tabs, setTabs] = useState<PanelTab[]>(initialTabs);
   const [tab, setTab] = useState<PanelTab>(
@@ -76,10 +78,19 @@ export default function PositionsPanel({
         leverage: String(p.leverage),
         slippage: "0.5",
       });
-      await Promise.all([refreshPositions(), refreshBalance()]);
+      await Promise.all([
+        refreshOrders(),
+        refreshPositions(),
+        refreshBalance(),
+      ]);
     } finally {
       setClosing(null);
     }
+  }
+
+  async function cancel(o: (typeof orders)[number]) {
+    await api.cancelOrder(o.orderId, o.marketId);
+    await Promise.all([refreshOrders(), refreshBalance(), refreshPositions()]);
   }
 
   const addTab = (t: PanelTab) => {
@@ -113,7 +124,7 @@ export default function PositionsPanel({
               t === "Positions"
                 ? positions.length
                 : t === "Open Orders"
-                  ? OPEN_ORDERS.length
+                  ? orders.length
                   : null;
             const active = tab === t;
             return (
@@ -338,7 +349,7 @@ export default function PositionsPanel({
               </tr>
             </thead>
             <tbody>
-              {OPEN_ORDERS.map((o, i) => (
+              {orders.map((o, i) => (
                 <tr key={i} className="border-t border-border/60">
                   <td className="px-3 py-2.5 font-medium">
                     {o.symbol.split("-")[0]}
@@ -366,7 +377,12 @@ export default function PositionsPanel({
                     </td>
                   )}
                   <td className="px-3 py-2.5 text-right">
-                    <Button variant="outline" size="sm">
+                    <Button
+                      onClick={() => cancel(o)}
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer"
+                    >
                       Cancel
                     </Button>
                   </td>

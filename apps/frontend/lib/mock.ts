@@ -142,6 +142,8 @@ export const POSITIONS: Position[] = [
 ];
 
 export type OpenOrder = {
+  orderId: string;
+  marketId: string;
   symbol: string;
   side: "long" | "short";
   type: "Limit";
@@ -152,26 +154,26 @@ export type OpenOrder = {
 };
 
 // REAL: GET /api/v1/orders?open=true
-export const OPEN_ORDERS: OpenOrder[] = [
-  {
-    symbol: "BTC-PERP",
-    side: "long",
-    type: "Limit",
-    price: 66000,
-    size: 0.2,
-    filled: 0,
-    time: "09:41:02",
-  },
-  {
-    symbol: "ETH-PERP",
-    side: "short",
-    type: "Limit",
-    price: 3600,
-    size: 0.8,
-    filled: 0.3,
-    time: "09:38:55",
-  },
-];
+// export const OPEN_ORDERS: OpenOrder[] = [
+//   {
+//     symbol: "BTC-PERP",
+//     side: "long",
+//     type: "Limit",
+//     price: 66000,
+//     size: 0.2,
+//     filled: 0,
+//     time: "09:41:02",
+//   },
+//   {
+//     symbol: "ETH-PERP",
+//     side: "short",
+//     type: "Limit",
+//     price: 3600,
+//     size: 0.8,
+//     filled: 0.3,
+//     time: "09:38:55",
+//   },
+// ];
 
 // REAL: GET /api/v1/balance
 export const BALANCE = {

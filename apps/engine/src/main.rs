@@ -134,7 +134,7 @@ async fn main() -> redis::RedisResult<()> {
 }
 
 fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
-    if let ToEngine::CreateOrder { .. } = &msg {
+    if let ToEngine::CancelOrder { .. } = &msg {
         println!("{msg:?}");
     }
 
@@ -168,5 +168,6 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         }
         ToEngine::FundingTick { market_id } => engine.apply_funding(market_id),
         ToEngine::Funding { market_id } => engine.apply_funding(market_id),
+        ToEngine::GetOpenOrders { user_id } => engine.get_open_orders(&user_id),
     }
 }
