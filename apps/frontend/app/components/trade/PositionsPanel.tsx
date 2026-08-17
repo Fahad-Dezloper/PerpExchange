@@ -10,6 +10,7 @@ import { useMarkets } from "@/lib/market";
 import { useBalance } from "@/lib/balance";
 import * as api from "@/lib/api";
 import { useOrders } from "@/lib/order";
+import { useLivePrices } from "@/lib/price";
 
 const ALL_TABS = [
   "Positions",
@@ -42,6 +43,7 @@ export default function PositionsPanel({
   compact?: boolean;
   defaultTab?: PanelTab;
 }) {
+  const prices = useLivePrices();
   const { positions, refresh: refreshPositions } = usePositons();
   const { bySymbol } = useMarkets();
   const { refresh: refreshBalance } = useBalance();
@@ -61,6 +63,8 @@ export default function PositionsPanel({
       compact ? (["side", "size"] as ColKey[]) : POS_COLUMNS.map((c) => c.key),
     ),
   );
+
+  // const mark = prices[p.symbol] ?? p.mark;
 
   const available = ALL_TABS.filter((t) => !tabs.includes(t));
 
@@ -263,7 +267,14 @@ export default function PositionsPanel({
               </tr>
             </thead>
             <tbody>
-              {positions.map((p) => (
+              {positions.map((p) => {
+                const mark = prices[p.symbol] ?? p.mark;
+                const pnl =
+                  p.side === "Long"
+                    ? (mark - p.entry) * p.size
+                    : (p.entry - mark) * p.size;
+                const pnlPct = p.margin > 0 ? (pnl / p.margin) * 100 : 0;
+                return (
                 <tr key={p.symbol} className="border-t border-border/60">
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
@@ -296,7 +307,7 @@ export default function PositionsPanel({
                   )}
                   {cols.has("mark") && (
                     <td className="tnum px-3 py-2.5 text-right">
-                      {fmtUsd(p.mark)}
+                      {fmtUsd(mark)}
                     </td>
                   )}
                   {cols.has("liq") && (
@@ -310,11 +321,11 @@ export default function PositionsPanel({
                     </td>
                   )}
                   <td
-                    className={`tnum px-3 py-2.5 text-right ${p.pnl >= 0 ? "text-long" : "text-short"}`}
+                    className={`tnum px-3 py-2.5 text-right ${pnl >= 0 ? "text-long" : "text-short"}`}
                   >
-                    {p.pnl >= 0 ? "+" : ""}
-                    {fmtUsd(p.pnl)}{" "}
-                    <span className="text-xs">({p.pnlPct.toFixed(1)}%)</span>
+                    {pnl >= 0 ? "+" : ""}
+                    {fmtUsd(pnl)}{" "}
+                    <span className="text-xs">({pnlPct.toFixed(1)}%)</span>
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <Button
@@ -327,7 +338,8 @@ export default function PositionsPanel({
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         ) : tab === "Open Orders" ? (
