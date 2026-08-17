@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { authClient } from "./auth-client";
+import { setUnauthorizedHandler } from "./api";
+import { notify } from "./toast";
 
 type AuthState = {
   token: string | null;
@@ -35,6 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authClient.signOut();
     localStorage.removeItem("bearer_token");
   }
+
+  // surface expired/invalid sessions globally (any 401/403 from the API)
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      notify.error("Session expired", "Please sign in again.");
+      logout();
+    });
+  }, []);
 
   return (
     <Ctx.Provider

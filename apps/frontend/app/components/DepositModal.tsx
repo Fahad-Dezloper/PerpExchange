@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import * as api from "../../lib/api";
 import { fmtUsd } from "../../lib/mock";
 import { useBalance } from "@/lib/balance";
+import { notify } from "@/lib/toast";
 
 export default function DepositModal({
   open,
@@ -29,16 +30,22 @@ export default function DepositModal({
   async function submit() {
     const n = Number(amount);
     if (!n || n <= 0) return;
+    const action = tab;
     setBusy(true);
     setMsg(null);
     try {
-      if (tab === "deposit") await api.deposit(n);
+      if (action === "deposit") await api.deposit(n);
       else await api.withdraw(n);
-      setMsg(`${tab === "deposit" ? "Deposited" : "Withdrew"} ${fmtUsd(n)}`);
       setAmount("");
-      await refresh();
+      notify.success(
+        action === "deposit" ? "Deposit successful" : "Withdrawal successful",
+        `${action === "deposit" ? "Deposited" : "Withdrew"} ${fmtUsd(n)}`,
+      );
     } catch (e) {
-      setMsg((e as Error).message || "Failed");
+      notify.error(
+        action === "deposit" ? "Deposit failed" : "Withdrawal failed",
+        (e as Error).message,
+      );
     } finally {
       setBusy(false);
       await refresh();

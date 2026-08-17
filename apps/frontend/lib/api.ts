@@ -63,14 +63,10 @@ export async function getBalance(): Promise<BalanceDto> {
 }
 
 export async function deposit(amount: number): Promise<void> {
-  try {
-    await req("api/v1/onramp", {
-      method: "POST",
-      body: JSON.stringify({ amount: String(amount) }),
-    });
-  } catch (e) {
-    console.log("Error while onramping", e);
-  }
+  await req("api/v1/onramp", {
+    method: "POST",
+    body: JSON.stringify({ amount: String(amount) }),
+  });
 }
 
 export async function withdraw(amount: number): Promise<void> {

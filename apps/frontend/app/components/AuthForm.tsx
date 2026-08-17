@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth";
+import { notify } from "@/lib/toast";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
@@ -33,9 +34,15 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             try {
               if (isSignup) await signup(email, password);
               else await login(email, password);
+              notify.success(
+                isSignup ? "Account created" : "Signed in",
+                email,
+              );
               router.push("/");
             } catch (err) {
-              setError((err as Error).message || "Something went wrong");
+              const m = (err as Error).message || "Something went wrong";
+              setError(m);
+              notify.error(isSignup ? "Sign up failed" : "Sign in failed", m);
             }
           }}
         >

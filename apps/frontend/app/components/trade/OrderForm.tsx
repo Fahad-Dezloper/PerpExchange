@@ -10,6 +10,7 @@ import { useMarkets } from "@/lib/market";
 import { useBalance } from "@/lib/balance";
 import * as api from "@/lib/api";
 import { usePositons } from "@/lib/positions";
+import { notify } from "@/lib/toast";
 
 const QUOTE = "USDT";
 
@@ -28,7 +29,6 @@ export default function OrderForm({
   const { bySymbol } = useMarkets();
   const { refresh, balance } = useBalance();
   const [submitting, setSubmitting] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const { refresh: refreshPositions } = usePositons();
 
   const base = symbol.split("-")[0];
@@ -68,15 +68,14 @@ export default function OrderForm({
   async function submit() {
     const marketId = bySymbol[symbol]?.id;
     if (!marketId) {
-      setMsg("Unknown Market");
+      notify.error("Unknown market", `No market found for ${symbol}.`);
       return;
     }
     if (size <= 0) return;
 
     setSubmitting(true);
-    setMsg(null);
     try {
-      const res = await api.placeOrder({
+      await api.placeOrder({
         marketId,
         side,
         type,
@@ -85,12 +84,19 @@ export default function OrderForm({
         leverage: String(leverage),
         slippage: String(slippage),
       });
-      console.log("responsse", res);
-      setMsg(`Order ${res.status}`);
       setVal("");
+      notify.success(
+        `${side === "long" ? "Long" : "Short"} order placed`,
+        `${size.toFixed(4)} ${base} @ ${
+          type === "market" ? "Market" : fmtUsd(px, dp)
+        } · ${leverage}x · ${fmtUsd(collateral)} margin`,
+      );
       await Promise.all([refresh(), refreshPositions()]);
     } catch (e) {
-      setMsg((e as Error).message || "Order failed");
+      notify.error(
+        "Order failed",
+        e instanceof Error ? e.message : String(e),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -294,9 +300,6 @@ export default function OrderForm({
                 : `Open ${side === "long" ? "Long" : "Short"}`}
         </Button>
       )}
-      {msg && (
-        <p className="mt-2 text-center text-[12px] text-muted">{msg}</p>
-      )}{" "}
     </div>
   );
 }

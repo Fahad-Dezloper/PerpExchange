@@ -11,6 +11,7 @@ import { useBalance } from "@/lib/balance";
 import * as api from "@/lib/api";
 import { useOrders } from "@/lib/order";
 import { useLivePrices } from "@/lib/price";
+import { notify } from "@/lib/toast";
 
 const ALL_TABS = [
   "Positions",
@@ -82,19 +83,31 @@ export default function PositionsPanel({
         leverage: String(p.leverage),
         slippage: "0.5",
       });
+      notify.success("Position closed", p.symbol);
       await Promise.all([
         refreshOrders(),
         refreshPositions(),
         refreshBalance(),
       ]);
+    } catch {
+      notify.error("Close failed");
     } finally {
       setClosing(null);
     }
   }
 
   async function cancel(o: (typeof orders)[number]) {
-    await api.cancelOrder(o.orderId, o.marketId);
-    await Promise.all([refreshOrders(), refreshBalance(), refreshPositions()]);
+    try {
+      await api.cancelOrder(o.orderId, o.marketId);
+      notify.success("Order cancelled");
+      await Promise.all([
+        refreshOrders(),
+        refreshBalance(),
+        refreshPositions(),
+      ]);
+    } catch {
+      notify.error("Cancel failed");
+    }
   }
 
   const addTab = (t: PanelTab) => {
@@ -275,69 +288,69 @@ export default function PositionsPanel({
                     : (p.entry - mark) * p.size;
                 const pnlPct = p.margin > 0 ? (pnl / p.margin) * 100 : 0;
                 return (
-                <tr key={p.symbol} className="border-t border-border/60">
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <TokenIcon symbol={p.symbol} size={22} />
-                      <span className="font-medium">
-                        {p.symbol.split("-")[0]}
-                      </span>
-                    </div>
-                  </td>
-                  {cols.has("side") && (
+                  <tr key={p.symbol} className="border-t border-border/60">
                     <td className="px-3 py-2.5">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-xs ${
-                          p.side === "Long"
-                            ? "bg-long/15 text-long"
-                            : "bg-short/15 text-short"
-                        }`}
-                      >
-                        {p.side} {p.leverage}×
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <TokenIcon symbol={p.symbol} size={22} />
+                        <span className="font-medium">
+                          {p.symbol.split("-")[0]}
+                        </span>
+                      </div>
                     </td>
-                  )}
-                  {cols.has("size") && (
-                    <td className="tnum px-3 py-2.5 text-right">{p.size}</td>
-                  )}
-                  {cols.has("entry") && (
-                    <td className="tnum px-3 py-2.5 text-right">
-                      {fmtUsd(p.entry)}
-                    </td>
-                  )}
-                  {cols.has("mark") && (
-                    <td className="tnum px-3 py-2.5 text-right">
-                      {fmtUsd(mark)}
-                    </td>
-                  )}
-                  {cols.has("liq") && (
-                    <td className="tnum px-3 py-2.5 text-right text-warn">
-                      {fmtUsd(p.liq)}
-                    </td>
-                  )}
-                  {cols.has("margin") && (
-                    <td className="tnum px-3 py-2.5 text-right">
-                      {fmtUsd(p.margin)}
-                    </td>
-                  )}
-                  <td
-                    className={`tnum px-3 py-2.5 text-right ${pnl >= 0 ? "text-long" : "text-short"}`}
-                  >
-                    {pnl >= 0 ? "+" : ""}
-                    {fmtUsd(pnl)}{" "}
-                    <span className="text-xs">({pnlPct.toFixed(1)}%)</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Button
-                      variant="short"
-                      size="sm"
-                      disabled={closing === p.symbol}
-                      onClick={() => closePosition(p)}
+                    {cols.has("side") && (
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-xs ${
+                            p.side === "Long"
+                              ? "bg-long/15 text-long"
+                              : "bg-short/15 text-short"
+                          }`}
+                        >
+                          {p.side} {p.leverage}×
+                        </span>
+                      </td>
+                    )}
+                    {cols.has("size") && (
+                      <td className="tnum px-3 py-2.5 text-right">{p.size}</td>
+                    )}
+                    {cols.has("entry") && (
+                      <td className="tnum px-3 py-2.5 text-right">
+                        {fmtUsd(p.entry)}
+                      </td>
+                    )}
+                    {cols.has("mark") && (
+                      <td className="tnum px-3 py-2.5 text-right">
+                        {fmtUsd(mark)}
+                      </td>
+                    )}
+                    {cols.has("liq") && (
+                      <td className="tnum px-3 py-2.5 text-right text-warn">
+                        {fmtUsd(p.liq)}
+                      </td>
+                    )}
+                    {cols.has("margin") && (
+                      <td className="tnum px-3 py-2.5 text-right">
+                        {fmtUsd(p.margin)}
+                      </td>
+                    )}
+                    <td
+                      className={`tnum px-3 py-2.5 text-right ${pnl >= 0 ? "text-long" : "text-short"}`}
                     >
-                      {closing === p.symbol ? "Closing…" : "Close"}
-                    </Button>
-                  </td>
-                </tr>
+                      {pnl >= 0 ? "+" : ""}
+                      {fmtUsd(pnl)}{" "}
+                      <span className="text-xs">({pnlPct.toFixed(1)}%)</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Button
+                        variant="short"
+                        size="sm"
+                        disabled={closing === p.symbol}
+                        onClick={() => closePosition(p)}
+                      >
+                        {closing === p.symbol ? "Closing…" : "Close"}
+                      </Button>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

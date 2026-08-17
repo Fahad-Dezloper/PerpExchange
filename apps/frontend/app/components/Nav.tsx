@@ -8,6 +8,7 @@ import { fmtUsd } from "../../lib/mock";
 import { useAuth } from "../../lib/auth";
 import DepositModal from "./DepositModal";
 import { useBalance } from "@/lib/balance";
+import { notify } from "@/lib/toast";
 
 export default function Nav() {
   const path = usePathname();
@@ -25,7 +26,10 @@ export default function Nav() {
         <div className="ml-auto flex items-center gap-4">
           {username ? (
             <button
-              onClick={logout}
+              onClick={() => {
+                logout();
+                notify.info("Signed out");
+              }}
               className="text-[13px] text-muted transition hover:text-fg"
             >
               <div className="tnum text-base font-medium">
