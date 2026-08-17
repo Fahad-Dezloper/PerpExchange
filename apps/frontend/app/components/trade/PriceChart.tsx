@@ -11,8 +11,9 @@ import {
   type CandlestickData,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { makeCandles, fmtNum } from "../../../lib/mock";
+import { fmtNum } from "../../../lib/mock";
 import { getKlines } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
 const GRANULARITY: Record<string, number> = {
@@ -41,11 +42,13 @@ export default function PriceChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const lastBarRef = useRef<CandlestickData | null>(null);
   const [tf, setTf] = useState<(typeof TIMEFRAMES)[number]>("5m");
+  const [loading, setLoading] = useState(true);
 
   // build chart + seed real candles per (market, timeframe, precision)
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !marketId) return;
+    setLoading(true);
 
     const chart: IChartApi = createChart(el, {
       autoSize: true,
@@ -93,7 +96,10 @@ export default function PriceChart({
         chart.timeScale().fitContent();
         lastBarRef.current = data[data.length - 1] ?? null;
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
 
     return () => {
       alive = false;
@@ -138,7 +144,20 @@ export default function PriceChart({
         <span className="tnum ml-auto text-fg">{fmtNum(live, dp)}</span>
       </div>
 
-      <div ref={containerRef} className="h-[360px] w-full" />
+      <div className="relative h-[360px] w-full">
+        <div ref={containerRef} className="h-full w-full" />
+        {loading && (
+          <div className="absolute inset-0 grid grid-cols-12 items-end gap-2 bg-panel p-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                className="w-full"
+                style={{ height: `${30 + ((i * 37) % 60)}%` }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fmtNum } from "../../../lib/mock";
 import * as api from "@/lib/api";
 import { useChannel } from "@/lib/ws";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Lvl = { price: number; size: number; total: number };
 const cum = (rows: [string, string][], desc: boolean): Lvl[] => {
@@ -26,22 +27,27 @@ export default function OrderBook({
     bids: [],
     asks: [],
   });
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!marketId) return;
+    setLoaded(false);
     api
       .getDepth(marketId.toString())
       .then((d) =>
         setBook({ bids: cum(d.bids, true), asks: cum(d.asks, false) }),
       )
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, [marketId]);
 
   useChannel<{ bids: [string, string][]; asks: [string, string][] }>(
     marketId ? `depth.${marketId}` : null,
-    (d) => setBook({ bids: cum(d.bids, true), asks: cum(d.asks, false) }),
+    (d) => {
+      setBook({ bids: cum(d.bids, true), asks: cum(d.asks, false) });
+      setLoaded(true);
+    },
   );
-  console.log("book recived", book);
   // show only the best 10 levels nearest the spread on each side
   const asks = book.asks.slice(-11);
   const bids = book.bids.slice(0, 12);
@@ -59,37 +65,65 @@ export default function OrderBook({
         <span className="text-right">Total</span>
       </div>
 
-      {/* asks (top 10) */}
-      <div className="flex flex-col-reverse">
-        {asks.map((l, i) => (
-          <Row
-            key={"a" + i}
-            l={l}
-            dp={dp}
-            tone="short"
-            pct={(l.total / maxTotal) * 100}
-          />
-        ))}
-      </div>
+      {!loaded ? (
+        <BookSkeleton dp={dp} mid={mid} />
+      ) : (
+        <>
+          {/* asks (top 10) */}
+          <div className="flex flex-col-reverse">
+            {asks.map((l, i) => (
+              <Row
+                key={"a" + i}
+                l={l}
+                dp={dp}
+                tone="short"
+                pct={(l.total / maxTotal) * 100}
+              />
+            ))}
+          </div>
 
-      {/* spread */}
-      <div className="tnum my-1 flex items-center justify-between border-y border-border px-3 py-1.5 text-sm">
-        <span className="font-semibold text-2xl">{fmtNum(mid, dp)}</span>
-      </div>
+          {/* spread */}
+          <div className="tnum my-1 flex items-center justify-between border-y border-border px-3 py-1.5 text-sm">
+            <span className="font-semibold text-2xl">{fmtNum(mid, dp)}</span>
+          </div>
 
-      {/* bids (top 10) */}
-      <div className="flex flex-col">
-        {bids.map((l, i) => (
-          <Row
-            key={"b" + i}
-            l={l}
-            dp={dp}
-            tone="long"
-            pct={(l.total / maxTotal) * 100}
-          />
-        ))}
-      </div>
+          {/* bids (top 10) */}
+          <div className="flex flex-col">
+            {bids.map((l, i) => (
+              <Row
+                key={"b" + i}
+                l={l}
+                dp={dp}
+                tone="long"
+                pct={(l.total / maxTotal) * 100}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function BookSkeleton({ dp, mid }: { dp: number; mid: number }) {
+  return (
+    <>
+      <div className="flex flex-col-reverse gap-1.5 px-3 py-1">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={"sa" + i} className="h-3.5 w-full" />
+        ))}
+      </div>
+      <div className="tnum my-1 flex items-center justify-between border-y border-border px-3 py-1.5 text-sm">
+        <span className="text-2xl font-semibold text-muted">
+          {mid ? fmtNum(mid, dp) : <Skeleton className="h-6 w-24" />}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 px-3 py-1">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={"sb" + i} className="h-3.5 w-full" />
+        ))}
+      </div>
+    </>
   );
 }
 

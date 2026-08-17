@@ -12,6 +12,7 @@ import * as api from "@/lib/api";
 import { useOrders } from "@/lib/order";
 import { useLivePrices } from "@/lib/price";
 import { notify } from "@/lib/toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const ALL_TABS = [
   "Positions",
@@ -45,11 +46,19 @@ export default function PositionsPanel({
   defaultTab?: PanelTab;
 }) {
   const prices = useLivePrices();
-  const { positions, refresh: refreshPositions } = usePositons();
+  const {
+    positions,
+    loading: positionsLoading,
+    refresh: refreshPositions,
+  } = usePositons();
   const { bySymbol } = useMarkets();
   const { refresh: refreshBalance } = useBalance();
   const [closing, setClosing] = useState<string | null>(null);
-  const { orders, refresh: refreshOrders } = useOrders();
+  const {
+    orders,
+    loading: ordersLoading,
+    refresh: refreshOrders,
+  } = useOrders();
 
   const [tabs, setTabs] = useState<PanelTab[]>(initialTabs);
   const [tab, setTab] = useState<PanelTab>(
@@ -280,7 +289,19 @@ export default function PositionsPanel({
               </tr>
             </thead>
             <tbody>
-              {positions.map((p) => {
+              {positionsLoading && positions.length === 0 ? (
+                <SkeletonRows rows={3} cols={shownCols.length + 3} />
+              ) : positions.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={shownCols.length + 3}
+                    className="px-3 py-10 text-center text-sm text-muted"
+                  >
+                    No open positions.
+                  </td>
+                </tr>
+              ) : (
+                positions.map((p) => {
                 const mark = prices[p.symbol] ?? p.mark;
                 const pnl =
                   p.side === "Long"
@@ -352,7 +373,8 @@ export default function PositionsPanel({
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         ) : tab === "Open Orders" ? (
@@ -374,7 +396,19 @@ export default function PositionsPanel({
               </tr>
             </thead>
             <tbody>
-              {orders.map((o, i) => (
+              {ordersLoading && orders.length === 0 ? (
+                <SkeletonRows rows={3} cols={compact ? 5 : 8} />
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={compact ? 5 : 8}
+                    className="px-3 py-10 text-center text-sm text-muted"
+                  >
+                    No open orders.
+                  </td>
+                </tr>
+              ) : (
+                orders.map((o, i) => (
                 <tr key={i} className="border-t border-border/60">
                   <td className="px-3 py-2.5 font-medium">
                     {o.symbol.split("-")[0]}
@@ -412,7 +446,8 @@ export default function PositionsPanel({
                     </Button>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         ) : (
@@ -422,5 +457,19 @@ export default function PositionsPanel({
         )}
       </div>
     </div>
+  );
+}
+
+function SkeletonRows({ rows, cols }: { rows: number; cols: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <tr key={i} className="border-t border-border/60">
+          <td colSpan={cols} className="px-3 py-2.5">
+            <Skeleton className="h-6 w-full" />
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }

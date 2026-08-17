@@ -4,6 +4,7 @@ import { makeCandles, fmtUsd, priceDp, type Market } from "../lib/mock";
 import TokenIcon from "./components/TokenIcon";
 import MarketRow from "./components/MarketRow";
 import { useMarkets } from "@/lib/market";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // keep identical to COLS in components/MarketRow.tsx
 const HEADER_COLS =
@@ -13,11 +14,7 @@ export default function MarketsPage() {
   const { markets, loading } = useMarkets();
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted">
-        Loading markets…
-      </div>
-    );
+    return <MarketsSkeleton />;
   }
   if (!markets.length) {
     return (
@@ -68,6 +65,59 @@ export default function MarketsPage() {
         <code className="text-accent">GET /api/v1/markets</code> + ws{" "}
         <code className="text-accent">ticker.&lt;symbol&gt;</code>.
       </p>
+    </div>
+  );
+}
+
+function MarketsSkeleton() {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      {/* mover cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-panel p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="h-7 w-7 rounded-full" />
+              <Skeleton className="h-5 w-24" />
+            </div>
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-6 w-16 rounded-lg" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ))}
+      </div>
+
+      {/* table */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-panel">
+        <div
+          className={`${HEADER_COLS} border-b border-border-soft py-3.5`}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-4 w-16" />
+          ))}
+        </div>
+        <div className="divide-y divide-border-soft">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className={`${HEADER_COLS} py-4`}>
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3 w-14" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-16 justify-self-end" />
+              <Skeleton className="h-4 w-12 justify-self-end" />
+              <Skeleton className="hidden h-4 w-16 justify-self-end md:block" />
+              <Skeleton className="hidden h-4 w-14 justify-self-end md:block" />
+              <Skeleton className="hidden h-8 w-24 justify-self-end md:block" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
