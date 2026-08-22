@@ -16,7 +16,6 @@ function toPair(slug: string) {
 
 async function fetchPrice(pair: string): Promise<string> {
   const res = await fetch(`https://api.coinbase.com/v2/prices/${pair}/spot`);
-  // console.log("res", res);
   if (!res.ok) throw new Error(`coinbase ${pair} -> ${res.status}`);
   const data = (await res.json()) as { data?: { amount?: string } };
   if (!data.data?.amount) throw new Error(`no price for ${pair}`);

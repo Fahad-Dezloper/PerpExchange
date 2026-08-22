@@ -810,7 +810,6 @@ impl Engine {
         user_id: &str,
         market_id: &str,
     ) -> serde_json::Value {
-        println!("cancel market id: {:?}", self.orderbooks.keys());
         let book = match self.orderbooks.get_mut(market_id) {
             Some(b) => b,
             None => return serde_json::json!({"ok": false, "error": "no market"}),

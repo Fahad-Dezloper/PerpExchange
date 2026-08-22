@@ -31,7 +31,7 @@ export default function BookTrades({
       {/* body */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "book" ? (
-          <OrderBook marketId={marketId} mid={dp} dp={dp} />
+          <OrderBook marketId={marketId} mid={mid} dp={dp} />
         ) : (
           <TradesTape marketId={marketId} dp={dp} />
         )}

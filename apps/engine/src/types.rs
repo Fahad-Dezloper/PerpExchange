@@ -26,7 +26,6 @@ pub enum ToEngine {
         margin_mode: String,
         price: f64,
         qty: String,
-        slippage: String,
         leverage: String,
     },
 

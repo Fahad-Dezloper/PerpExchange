@@ -93,11 +93,9 @@ async fn main() -> redis::RedisResult<()> {
                     Ok(msg) => handle(&mut engine, msg),
                     Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
                 };
-                // println!("here result {:?}", result);
 
                 // flush emitted events
                 let (db_events, broadcasts) = engine.drain();
-                //  println!("here db e {:?} {:?}", db_events, broadcasts);
 
                 for e in db_events {
                     let _: () = publisher
@@ -114,7 +112,6 @@ async fn main() -> redis::RedisResult<()> {
                     "payload": result
                 })
                 .to_string();
-                // println!("here r payload {:?}", reply_payload);
                 let _: () = publisher.publish(REPLY_CHANNEL, reply_payload).await?;
 
                 // ack
@@ -126,7 +123,6 @@ async fn main() -> redis::RedisResult<()> {
                 processed += 1;
                 if processed % SNAPSHOT_EVERY == 0 {
                     snapshot::save(&engine, &last_id);
-                    // println!("snapshot saved @ {last_id}");
                 }
             }
         }
@@ -134,10 +130,6 @@ async fn main() -> redis::RedisResult<()> {
 }
 
 fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
-    if let ToEngine::CancelOrder { .. } = &msg {
-        println!("{msg:?}");
-    }
-
     match msg {
         ToEngine::CreateMarket { market_id } => engine.create_market(market_id),
         ToEngine::CreateOrder {

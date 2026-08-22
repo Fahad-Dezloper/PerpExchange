@@ -61,31 +61,6 @@ export type ToEngine =
     }
   | { messageType: "get_open_orders"; userId: string };
 
-// order types
-export type OpenOrder = {
-  userId: string;
-  originlaOrderId: string;
-  qty: string;
-  filledQty: string;
-};
-
-export type Bid = {
-  availableQty: number;
-  openOrders: OpenOrder[];
-};
-
-export type Ask = {
-  availableQty: number;
-  openOrders: OpenOrder[];
-};
-
-export interface Orderbook {
-  bids: Map<string, Bid>;
-  asks: Map<string, Ask>;
-  marketId: string;
-  lastTradedPrice: number;
-}
-
 export type EngineEvent =
   | {
       type: "order_created";
@@ -120,10 +95,6 @@ export type EngineEvent =
       userId: string;
       available: string;
       locked: string;
-    }
-  | {
-      messageType: "get_open_orders";
-      userId: string;
     };
 
 export type UserEvents = {

@@ -33,7 +33,6 @@ export default function TradeView({ symbol }: { symbol: string }) {
   useChannel<{ markPrice?: string; price?: string }>(
     marketId ? `ticker.${marketId}` : null,
     (d) => {
-      console.log("what is p", d);
       const p = Number(d.markPrice ?? d.price);
       if (!p) return;
       setDir(p >= price ? 1 : -1);
@@ -54,7 +53,7 @@ export default function TradeView({ symbol }: { symbol: string }) {
           <MarketHeader symbol={symbol} price={price} dir={dir} />
           <div className="grid min-w-0 grid-cols-[260px_minmax(0,1fr)] gap-2">
             <BookTrades marketId={marketId} mid={price} dp={dp} />
-            <ChartTrades marketId={marketId} mid={price} live={price} dp={dp} />
+            <ChartTrades marketId={marketId} live={price} dp={dp} />
           </div>
         </div>
 

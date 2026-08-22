@@ -23,7 +23,6 @@ async function ensureGroup() {
 }
 
 async function handle(event: EngineEvent) {
-  console.log("engine events", event);
   switch (event.type) {
     case "order_created":
       await prisma.order.upsert({

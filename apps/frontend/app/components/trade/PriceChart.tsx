@@ -29,12 +29,10 @@ const GRANULARITY: Record<string, number> = {
 // REAL: feed setData() from GET /api/v1/klines, then series.update() on ws trade.<symbol>.
 export default function PriceChart({
   marketId,
-  mid,
   live,
   dp,
 }: {
   marketId: string | null;
-  mid: number;
   live: number;
   dp: number;
 }) {

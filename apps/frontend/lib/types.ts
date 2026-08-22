@@ -88,18 +88,6 @@ export type WirePosition = {
   marginMode?: "cross" | "isolated";
 };
 
-export type WireOrder = {
-  id: string;
-  market_id: string;
-  side: "Bid" | "Ask";
-  orderType: "Limit" | "Market";
-  price: string | null;
-  qty: string;
-  filledQty: string;
-  status: OrderStatus;
-  createdAt: string;
-};
-
 export type WireOpenOrder = {
   orderId: string;
   marketId: string;
@@ -164,22 +152,6 @@ export function mapPositon(
   };
 }
 
-export function mapOrder(
-  o: WireOrder,
-  resolveSymbol: (marketId: string) => string = (id) => id,
-): OpenOrder {
-  return {
-    orderId: o.id,
-    marketId: o.market_id,
-    symbol: resolveSymbol(o.market_id),
-    side: o.side === "Bid" ? "long" : "short",
-    type: "Limit",
-    price: +(o.price ?? "0"),
-    size: +o.qty,
-    filled: +o.filledQty,
-    time: new Date(o.createdAt).toISOString().slice(11, 19),
-  };
-}
 
 export type Candle = {
   time: number;

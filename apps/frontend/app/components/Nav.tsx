@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { fmtUsd } from "../../lib/mock";
 
@@ -11,7 +10,6 @@ import { useBalance } from "@/lib/balance";
 import { notify } from "@/lib/toast";
 
 export default function Nav() {
-  const path = usePathname();
   const { username, logout } = useAuth();
   const { balance } = useBalance();
   const [walletOpen, setWalletOpen] = useState(false);

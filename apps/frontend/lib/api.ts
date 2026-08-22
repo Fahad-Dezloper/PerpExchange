@@ -6,18 +6,14 @@ import {
   mapBalance,
   mapMarket,
   mapOpenOrder,
-  mapOrder,
   mapPositon,
   PlaceOrder,
   PlaceOrderResult,
   WireBalance,
   WireMarket,
   WireOpenOrder,
-  WireOrder,
   WirePosition,
 } from "./types";
-
-export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 let onUnauthorized: (() => void) | null = null;

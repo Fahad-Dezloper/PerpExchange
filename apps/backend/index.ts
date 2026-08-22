@@ -52,7 +52,6 @@ app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
       userId: userId,
       amount: req.body.amount,
     });
-    console.log(queueLoopbackResponse);
 
     res.status(200).json({
       message: queueLoopbackResponse,
@@ -164,9 +163,7 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
   const notional = Number(qty) * Number(price ?? 0);
   const initialMargin = (notional / Number(leverage || 1)).toString();
 
-  // first db save and get orderID
   const orderId = `ODR-${ulid()}`;
-  console.log("order id", orderId);
 
   // send to engine
   try {
