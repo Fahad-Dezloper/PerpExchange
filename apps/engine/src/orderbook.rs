@@ -56,6 +56,7 @@ impl Orderbook {
         qty: Decimal,
         leverage: u32,
         margin: Decimal,
+        ioc: bool,
     ) -> (Vec<Fill>, Decimal) {
         let mut fills = Vec::new();
         let mut remaining = qty;
@@ -125,7 +126,7 @@ impl Orderbook {
             }
         }
 
-        // rest remainder on own side
+        // rest remainder on own side (IOC orders never rest)
         if remaining > Decimal::ZERO {
             let rest_margin = margin * (remaining / qty);
             let side = if is_buy {

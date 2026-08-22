@@ -14,7 +14,6 @@ import { notify } from "@/lib/toast";
 
 const QUOTE = "USDT";
 
-// REAL: place -> POST /api/v1/order { marketId, side, type, price, qty, leverage, slippage }
 export default function OrderForm({
   symbol,
   price,
@@ -47,7 +46,6 @@ export default function OrderForm({
   const px = type === "limit" ? Number(limitPrice) || price : price;
   const n = Number(val) || 0;
 
-  // collateral (USDT margin) <-> estimated size (base)
   let collateral = 0;
   let size = 0;
   if (mode === "collateral") {
@@ -76,11 +74,18 @@ export default function OrderForm({
 
     setSubmitting(true);
     try {
+      const slip = Number(slippage) / 100; // "0.5" -> 0.005
+      const submitPrice =
+        type === "market"
+          ? side === "long"
+            ? px * (1 + slip)
+            : px * (1 - slip)
+          : px;
       await api.placeOrder({
         marketId,
         side,
         type,
-        price: px,
+        price: submitPrice,
         qty: size.toString(),
         leverage: String(leverage),
         slippage: String(slippage),

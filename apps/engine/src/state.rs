@@ -345,6 +345,7 @@ impl Engine {
         price: f64,
         qty: String,
         leverage: u32,
+        order_type: String,
     ) -> serde_json::Value {
         let qty = match Decimal::from_str(&qty) {
             Ok(q) if q > Decimal::ZERO => q,
@@ -364,6 +365,7 @@ impl Engine {
 
         let notional = price * qty;
         let margin = notional / Decimal::from(leverage.max(1));
+        let is_market = order_type == "market";
 
         // lock funds first - reject if broke
         if !self.lock_margin(&user_id, margin) {
@@ -380,6 +382,7 @@ impl Engine {
                 qty,
                 leverage,
                 margin,
+                is_market,
             )
         };
 
@@ -420,6 +423,12 @@ impl Engine {
 
         let status = if remaining == Decimal::ZERO {
             "Filled"
+        } else if is_market {
+            if filled > Decimal::ZERO {
+                "Filled"
+            } else {
+                "Cancelled"
+            }
         } else if filled > Decimal::ZERO {
             "PartiallyFilled"
         } else {
@@ -447,7 +456,7 @@ impl Engine {
             "userId": user_id,
             "marketId": market_id,
             "side": side_ba,
-            "orderType": "Limit",
+            "orderType": if is_market { "Market" } else { "Limit" },
             "price": price.to_string(),
             "qty": qty.to_string(),
             "status": status
@@ -734,7 +743,8 @@ impl Engine {
             return serde_json::json!({ "ok": false, "error": "no mark price" });
         }
 
-        let rate = (last - mark) / mark;
+        let cap = Decimal::new(75, 4); // 0.0075 = 0.75%
+        let rate = ((last - mark) / mark).clamp(-cap, cap);
 
         // collect first - can't mutate balances while borrowing positions
         let mut payments: Vec<(String, Decimal)> = Vec::new();
