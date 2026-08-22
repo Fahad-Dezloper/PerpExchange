@@ -1,26 +1,33 @@
 import { createClient } from "redis";
-import jwt, { type JwtPayload } from "jsonwebtoken";
 
 const redisSub = createClient();
 redisSub.on("error", (e) => console.error("redis error", e));
 await redisSub.connect();
 
-const RELAY = ["trade.", "depth.", "ticker.", "funding."];
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3000";
+const RELAY = ["trade.", "depth.", "ticker.", "funding.", "user."];
+
+async function userIdFromToken(token: string | null): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/get-session`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { user?: { id?: string } } | null;
+    return data?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const server = Bun.serve<{ userId: string | null }>({
   port: 3001,
 
-  fetch(req, server) {
+  async fetch(req, server) {
     const url = new URL(req.url);
     const token = url.searchParams.get("token");
-    let userId: string | null = null;
-    if (token) {
-      try {
-        userId: jwt.verify(token, process.env.JWT_SECRET!);
-      } catch {
-        userId = null;
-      }
-    }
+    const userId = await userIdFromToken(token);
     if (server.upgrade(req, { data: { userId } })) return;
     return new Response("ws only", { status: 400 });
   },
@@ -41,7 +48,7 @@ const server = Bun.serve<{ userId: string | null }>({
       const { type, channel } = msg;
       if (!channel) return;
 
-      if (channel.startsWith("balance.") || channel.startsWith("position.")) {
+      if (channel.startsWith("user.")) {
         const owner = channel.split(".")[1];
         if (!ws.data.userId || ws.data.userId !== owner) {
           ws.send(

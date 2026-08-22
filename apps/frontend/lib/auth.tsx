@@ -7,6 +7,7 @@ import { notify } from "./toast";
 
 type AuthState = {
   token: string | null;
+  userId: string | null;
   username: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -49,9 +50,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider
       value={{
-        token: session ? (typeof window !== "undefined" ? localStorage.getItem("bearer_token") : null) : null,
+        token: session
+          ? typeof window !== "undefined"
+            ? localStorage.getItem("bearer_token")
+            : null
+          : null,
         username: session?.user.email ?? null,
         loading: isPending,
+        userId: session?.user.id ?? null,
         login,
         signup,
         logout,

@@ -11,7 +11,8 @@ import { OpenOrder } from "./mock";
 import { useAuth } from "./auth";
 import { useMarkets } from "./market";
 import * as api from "@/lib/api";
-import { onReconnect } from "./ws";
+import { onReconnect, useChannel } from "./ws";
+import { notify } from "./toast";
 
 type OrdersCtx = {
   orders: OpenOrder[];
@@ -21,7 +22,7 @@ type OrdersCtx = {
 const Ctx = createContext<OrdersCtx | null>(null);
 
 export function OrdersProvider({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  const { token, userId } = useAuth();
   const { markets } = useMarkets();
   const [raw, setRaw] = useState<OpenOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,25 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     onReconnect(refresh);
   }, [refresh]);
 
+  useChannel<any>(userId ? `user.${userId}` : null, (m) => {
+    if (!m?.type) return;
+    if (
+      m.type === "order" &&
+      (m.status === "Filled" || m.status === "Cancelled")
+    ) {
+      setRaw((prev) => prev.filter((o) => o.orderId !== m.orderId));
+    }
+
+    if (m.type === "order" || m.type === "fill") refresh();
+
+    if (m.type === "fill") {
+      const sym = byId[m.marketId] ?? m.marketId;
+      notify.success(
+        "Order filled",
+        `${String(m.side).toUpperCase()} ${+m.qty} ${sym} @ ${+m.price}`,
+      );
+    }
+  });
   const byId = Object.fromEntries(markets.map((m) => [m.id, m.symbol]));
 
   const orders = raw.map((o) => ({

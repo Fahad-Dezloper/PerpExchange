@@ -10,7 +10,7 @@ import {
 import { BalanceDto } from "./types";
 import { useAuth } from "./auth";
 import * as api from "./api";
-import { onReconnect } from "./ws";
+import { onReconnect, useChannel } from "./ws";
 
 const ZERO: BalanceDto = { available: 0, locked: 0, equity: 0, unrealized: 0 };
 
@@ -23,7 +23,7 @@ type BalanceCtx = {
 const Ctx = createContext<BalanceCtx | null>(null);
 
 export function BalanceProvider({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  const { token, userId } = useAuth();
   const [balance, setBalance] = useState<BalanceDto>(ZERO);
   const [loading, setLoading] = useState(false);
 
@@ -45,6 +45,19 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     onReconnect(refresh);
   }, [refresh]);
+
+  useChannel<any>(userId ? `user.${userId}` : null, (m) => {
+    if (m?.type === "balance") {
+      const available = +m.available;
+      const locked = +m.locked;
+      setBalance({
+        available,
+        locked,
+        equity: available + locked,
+        unrealized: 0,
+      });
+    }
+  });
 
   return (
     <Ctx.Provider value={{ balance, loading, refresh }}>

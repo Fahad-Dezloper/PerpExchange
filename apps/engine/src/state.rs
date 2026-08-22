@@ -54,6 +54,56 @@ impl Engine {
         self.out_pub.push((ch, e));
     }
 
+    fn push_balance(&mut self, user_id: &str) {
+        let (available, locked) = self
+            .balances
+            .get(user_id)
+            .map(|b| (b.available, b.locked))
+            .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+        self.emit_pub(
+            format!("user.{user_id}"),
+            serde_json::json!({
+                "type": "balance",
+                "available": available.to_string(),
+                "locked": locked.to_string()
+            }),
+        )
+    }
+
+    fn push_positions(&mut self, user_id: &str, market_id: &str) {
+        let snap = self
+            .positions
+            .get(user_id)
+            .and_then(|ups| ups.get(market_id))
+            .map(|p| {
+                (
+                    p.side.clone(),
+                    p.qty,
+                    p.avg_entry_price,
+                    p.margin,
+                    p.leverage,
+                    p.liquidation_price,
+                )
+            });
+        let payload = match snap {
+            Some((side, qty, entry, margin, leverage, liq)) => serde_json::json!({
+                "type": "position",
+                "marketId": market_id,
+                "side": side,
+                "qty": qty.to_string(),
+                "entryPrice": entry.to_string(),
+                "margin": margin.to_string(),
+                "leverage": leverage,
+                "liquidationPrice": liq.to_string(),
+            }),
+            None => serde_json::json!({
+                "type": "position_closed",
+                "marketId": market_id,
+            }),
+        };
+        self.emit_pub(format!("user.{user_id}"), payload);
+    }
+
     /// main drains after each command and flushes to redis
     pub fn drain(&mut self) -> (Vec<serde_json::Value>, Vec<(String, serde_json::Value)>) {
         (
@@ -226,6 +276,8 @@ impl Engine {
             "available": available.to_string(),
             "locked": locked.to_string(),
         }));
+
+        self.push_balance(&user_id);
 
         serde_json::json!({
             "ok": true,
@@ -437,6 +489,53 @@ impl Engine {
             )
         }
 
+        {
+            let taker_side = side.as_str();
+            let maker_side = if is_buy { "short" } else { "long" };
+            for f in &fills {
+                self.emit_pub(
+                    format!("user.{user_id}"),
+                    serde_json::json!({
+                        "type": "fill",
+                        "marketId": market_id,
+                        "price": f.price.to_string(),
+                        "qty": f.qty.to_string(),
+                        "side": taker_side,
+                    }),
+                );
+                self.emit_pub(
+                    format!("user.{}", f.maker_user_id),
+                    serde_json::json!({
+                        "type": "fill",
+                        "marketId": market_id,
+                        "price": f.price.to_string(),
+                        "qty": f.qty.to_string(),
+                        "side": maker_side
+                    }),
+                );
+            }
+
+            self.emit_pub(
+                format!("user.{user_id}"),
+                serde_json::json!({
+                    "type": "order",
+                    "orderId": order_id,
+                    "status": status,
+                    "filledQty": filled.to_string(),
+                }),
+            );
+
+            let mut affected: std::collections::HashSet<String> = std::collections::HashSet::new();
+            affected.insert(user_id.clone());
+            for f in &fills {
+                affected.insert(f.maker_user_id.clone());
+            }
+            for uid in affected {
+                self.push_balance(&uid);
+                self.push_positions(&uid, &market_id);
+            }
+        }
+
         serde_json::json!({
             "ok": true,
             "orderId": order_id,
@@ -460,6 +559,15 @@ impl Engine {
         match book.cancel(order_id, user_id) {
             Some(o) => {
                 self.unlock_margin(user_id, o.margin);
+                self.push_balance(user_id);
+                self.emit_pub(
+                    format!("user.{user_id}"),
+                    serde_json::json!({
+                        "type": "order",
+                        "orderId": order_id,
+                        "status": "Cancelled",
+                    }),
+                );
                 serde_json::json!({ "ok": true, "status": "Cancelled" })
             }
             None => serde_json::json!({ "ok": false, "error": "order not found" }),
@@ -514,6 +622,8 @@ impl Engine {
             "locked": locked.to_string(),
         }));
 
+        self.push_balance(&user_id);
+
         serde_json::json!({
             "ok": true,
             "available": available.to_string(),
@@ -554,7 +664,13 @@ impl Engine {
         for ev in &liquidated {
             let mut e = ev.clone();
             e["type"] = serde_json::json!("liquidation");
-            self.emit_db(e);
+            self.emit_db(e.clone());
+            if let Some(uid) = ev.get("userId").and_then(|v| v.as_str()) {
+                let uid = uid.to_string();
+                self.emit_pub(format!("user.{uid}"), e);
+                self.push_balance(&uid);
+                self.push_positions(&uid, &market_id); // position gone -> position_closed
+            }
         }
 
         serde_json::json!({ "ok": true, "marketId": market_id, "markPrice": p.to_string(), "liquidated": liquidated })
@@ -634,12 +750,21 @@ impl Engine {
         let mut events = Vec::new();
         for (user_id, delta) in &payments {
             let bal = self.balances.entry(user_id.clone()).or_default();
-            bal.available += *delta; // realized cashflow; may go negative
+            bal.available += *delta;
             events.push(serde_json::json!({
                 "userId": user_id,
                 "marketId": market_id,
                 "delta": delta.to_string()
             }));
+            self.emit_pub(
+                format!("user.{user_id}"),
+                serde_json::json!({
+                    "type": "funding",
+                    "marketId": market_id,
+                    "delta": delta.to_string(),
+                }),
+            );
+            self.push_balance(user_id);
         }
 
         self.emit_pub(
