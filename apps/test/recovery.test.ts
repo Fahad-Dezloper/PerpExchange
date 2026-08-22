@@ -1,54 +1,22 @@
+// Recovery test — kill the engine mid-flight and verify it rebuilds in-memory
+// state from snapshot + replay. Spawns/kills the engine via Bun.spawn.
+// Run alone:  bun test recovery.test.ts
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import axios from "axios";
 import { createClient } from "redis";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { BACKEND } from "./config";
+import {
+  balance,
+  createMarket,
+  makeUser,
+  onramp,
+  order,
+  positions,
+} from "./helpers";
 
-const ADMIN = process.env.ADMIN_SECRET!;
-const rnd = () => Math.random().toString(36).slice(2);
-const authH = (t: string) => ({ headers: { token: t } });
 const ENGINE_DIR = join(import.meta.dir, "../engine");
 
-// ---------- backend helpers ----------
-async function makeUser() {
-  const username = "u_" + rnd();
-  await axios.post(`${BACKEND}/api/v1/signup`, { username, password: "1" });
-  const r = await axios.post(`${BACKEND}/api/v1/signin`, {
-    username,
-    password: "1",
-  });
-  return r.data.token as string;
-}
-const onramp = (t: string, amount: string) =>
-  axios.post(`${BACKEND}/api/v1/onramp`, { amount }, authH(t));
-const balance = async (t: string) =>
-  (await axios.get(`${BACKEND}/api/v1/balance`, authH(t))).data;
-async function createMarket() {
-  const r = await axios.post(
-    `${BACKEND}/api/v1/market`,
-    { symbol: "T-" + rnd(), imageUrl: "x" },
-    { headers: { token: ADMIN } },
-  );
-  return r.data.id as string;
-}
-const order = (
-  t: string,
-  marketId: string,
-  side: string,
-  price: number,
-  qty: string,
-  leverage: string,
-) =>
-  axios.post(
-    `${BACKEND}/api/v1/order`,
-    { marketId, side, type: "limit", price, qty, leverage, slippage: "0" },
-    authH(t),
-  );
-const positions = async (t: string) =>
-  (await axios.get(`${BACKEND}/api/v1/positions`, authH(t))).data
-    .positions as any[];
-
+// engine may be mid-restart, so retry through transient failures
 async function waitFor<T>(
   fn: () => Promise<T>,
   ok: (v: T) => boolean,
@@ -81,7 +49,6 @@ function spawnEngine(): Promise<void> {
   let resolveReady!: () => void;
   const ready = new Promise<void>((r) => (resolveReady = r));
 
-  // drain stdout forever (or the engine blocks on a full pipe); resolve on marker
   (async () => {
     const reader = proc.stdout.getReader();
     const dec = new TextDecoder();
@@ -118,10 +85,10 @@ describe("engine recovers state after a crash", () => {
     await redis.connect();
     await redis.flushAll();
     await redis.quit();
-    await rm(join(ENGINE_DIR, "snapshot.json"), { force: true });
-    await rm(join(ENGINE_DIR, "snapshot.json.tmp"), { force: true });
+    await rm(join(ENGINE_DIR, "snapshots/latest.json"), { force: true });
+    await rm(join(ENGINE_DIR, "snapshots/latest.json.tmp"), { force: true });
 
-    await spawnEngine(); // first boot
+    await spawnEngine();
   });
 
   afterAll(async () => {
@@ -147,7 +114,6 @@ describe("engine recovers state after a crash", () => {
 
     // 💥 crash
     await killEngine();
-
     // 🔁 restart -> loads snapshot / replays the log
     await spawnEngine();
 
@@ -163,6 +129,6 @@ describe("engine recovers state after a crash", () => {
 
     const balAfter = await balance(A);
     expect(Number(balAfter.locked)).toBe(40);
-    expect(Number(balAfter.available)).toBe(960);
-  }, 180_000); // cargo build + two boots
+    expect(Number(balAfter.available)).toBeCloseTo(960, 0); // 1000 - 40 (minus small fee)
+  }, 180_000);
 });
