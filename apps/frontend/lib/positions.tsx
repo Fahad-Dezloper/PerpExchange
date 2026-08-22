@@ -63,12 +63,21 @@ const PositionProvider = ({ children }: { children: React.ReactNode }) => {
         pnlPct: 0,
       };
       setRaw((prev) => [...prev.filter((p) => p.symbol !== m.marketId), pos]);
-    } else if (m?.type === "position_closed" || m?.type === "liquidation") {
+    } else if (
+      m?.type === "position_closed" ||
+      m?.type === "liquidation" ||
+      m?.type === "adl"
+    ) {
       setRaw((prev) => prev.filter((p) => p.symbol !== m.marketId));
+      const sym =
+        markets.find((x) => x.id === m.marketId)?.symbol ?? m.marketId;
       if (m.type === "liquidation") {
-        const sym =
-          markets.find((x) => x.id === m.marketId)?.symbol ?? m.marketId;
         notify.error("Position liquidated", `${sym} · ${m.side}`);
+      } else if (m.type === "adl") {
+        notify.warning(
+          "Auto-deleveraged",
+          `${sym} · profit moved to insurance fund`,
+        );
       }
     }
   });

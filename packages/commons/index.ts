@@ -123,3 +123,13 @@ export type EngineEvent =
       messageType: "get_open_orders";
       userId: string;
     };
+
+export type UserEvents = {
+  type: "adl";
+  userId: string;
+  marketId: string;
+  side: "Long" | "Short";
+  qty: string;
+  markPrice: string;
+  clawedProfit: string;
+};

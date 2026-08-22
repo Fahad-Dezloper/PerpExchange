@@ -26,6 +26,8 @@ pub struct Engine {
     pub balances: HashMap<String, Balance>,
     pub orderbooks: HashMap<String, Orderbook>,
     pub positions: HashMap<String, HashMap<String, Position>>,
+    #[serde(default)]
+    pub insurance_fund: Decimal,
     #[serde(skip)]
     pub out_db: Vec<serde_json::Value>, // durable events -> to-db
     #[serde(skip)]
@@ -40,6 +42,25 @@ impl Engine {
     fn mmr() -> Decimal {
         Decimal::new(MMR_SCALE.0, MMR_SCALE.1)
     }
+
+    fn taker_fee() -> Decimal {
+        Decimal::new(5, 4) // 0.0005 = 0.05%
+    }
+    fn maker_fee() -> Decimal {
+        Decimal::new(2, 4) // 0.0002 = 0.02%
+    }
+
+    fn charge_fee(&mut self, user_id: &str, fee: Decimal) {
+        if fee <= Decimal::ZERO {
+            return;
+        }
+        {
+            let bal = self.balances.entry(user_id.to_string()).or_default();
+            bal.available -= fee;
+        }
+        self.insurance_fund += fee;
+    }
+
     fn emit_db(&mut self, e: serde_json::Value) {
         if self.replaying {
             return;
@@ -104,6 +125,62 @@ impl Engine {
         self.emit_pub(format!("user.{user_id}"), payload);
     }
 
+    fn run_adl(&mut self, market_id: &str, mark: Decimal) -> Vec<serde_json::Value> {
+        let mut events = Vec::new();
+
+        while self.insurance_fund < Decimal::ZERO {
+            // PICK THE SINGLE MOST PROFITABLE POSITION IN THIS MARKET
+            let mut best: Option<(String, String, Decimal, Decimal, Decimal)> = None;
+            // (user_id, side, qty, margin, upnl)
+            for (uid, ups) in self.positions.iter() {
+                if let Some(p) = ups.get(market_id) {
+                    let upnl = if p.side == "Long" {
+                        (mark - p.avg_entry_price) * p.qty
+                    } else {
+                        (p.avg_entry_price - mark) * p.qty
+                    };
+                    if upnl > Decimal::ZERO {
+                        let better = match &best {
+                            Some((_, _, _, _, b)) => upnl > *b,
+                            None => true,
+                        };
+                        if better {
+                            best = Some((uid.clone(), p.side.clone(), p.qty, p.margin, upnl));
+                        }
+                    }
+                }
+            }
+
+            let (uid, side, qty, margin, upnl) = match best {
+                Some(x) => x,
+                None => break,
+            };
+
+            if let Some(ups) = self.positions.get_mut(&uid) {
+                ups.remove(market_id);
+                if ups.is_empty() {
+                    self.positions.remove(&uid);
+                }
+            }
+            {
+                let bal = self.balances.entry(uid.clone()).or_default();
+                bal.locked -= margin;
+                bal.available += margin;
+            }
+            self.insurance_fund += upnl;
+
+            events.push(serde_json::json!({
+                "type": "adl",
+                "userId": uid,
+                "marketId": market_id,
+                "side": side,
+                "qty": qty.to_string(),
+                "markPrice": mark.to_string(),
+                "clawedProfit": upnl.to_string()
+            }));
+        }
+        events
+    }
     /// main drains after each command and flushes to redis
     pub fn drain(&mut self) -> (Vec<serde_json::Value>, Vec<(String, serde_json::Value)>) {
         (
@@ -465,6 +542,12 @@ impl Engine {
         for (i, f) in fills.iter().enumerate() {
             let fill_id = format!("{}-{}", f.taker_order_id, i);
 
+            let notional = f.qty * f.price;
+            let taker_fee = notional * Self::taker_fee();
+            let maker_fee = notional * Self::maker_fee();
+            self.charge_fee(&user_id, taker_fee);
+            self.charge_fee(&f.maker_user_id, maker_fee);
+
             self.emit_db(serde_json::json!({
                 "type": "fill",
                 "fillId": fill_id,
@@ -474,7 +557,9 @@ impl Engine {
                 "makerOrderId": f.maker_order_id,
                 "takerOrderId": f.taker_order_id,
                 "makerId": f.maker_user_id,
-                "takerId": f.taker_user_id
+                "takerId": f.taker_user_id,
+                "takerFee": taker_fee.to_string(),
+                "makerFee": maker_fee.to_string()
             }));
 
             self.emit_pub(
@@ -542,6 +627,18 @@ impl Engine {
             for uid in affected {
                 self.push_balance(&uid);
                 self.push_positions(&uid, &market_id);
+
+                let (available, locked) = self
+                    .balances
+                    .get(&uid)
+                    .map(|b| (b.available, b.locked))
+                    .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+                self.emit_db(serde_json::json!({
+                    "type": "balance_update",
+                    "userId": uid,
+                    "available": available.to_string(),
+                    "locked": locked.to_string()
+                }))
             }
         }
 
@@ -682,6 +779,19 @@ impl Engine {
             }
         }
 
+        if self.insurance_fund < Decimal::ZERO {
+            let adl = self.run_adl(&market_id, p);
+            for ev in &adl {
+                self.emit_db(ev.clone());
+                if let Some(uid) = ev.get("userId").and_then(|v| v.as_str()) {
+                    let uid = uid.to_string();
+                    self.emit_pub(format!("user.{uid}"), ev.clone());
+                    self.push_balance(&uid);
+                    self.push_positions(&uid, &market_id); // -> position_closed
+                }
+            }
+        }
+
         serde_json::json!({ "ok": true, "marketId": market_id, "markPrice": p.to_string(), "liquidated": liquidated })
     }
 
@@ -715,10 +825,20 @@ impl Engine {
                 }
             }
 
-            let payout = (margin + realized).max(Decimal::ZERO);
-            let bal = self.balances.entry(user_id.clone()).or_default();
-            bal.locked -= margin;
-            bal.available += payout;
+            let equity = margin + realized;
+            let payout = equity.max(Decimal::ZERO);
+            let deficit = (-equity).max(Decimal::ZERO);
+
+            {
+                let bal = self.balances.entry(user_id.clone()).or_default();
+                bal.locked -= margin;
+                bal.available += payout;
+            }
+
+            // insurance fund eats the shortfall on a bankrupt liquidation
+            if deficit > Decimal::ZERO {
+                self.insurance_fund -= deficit;
+            }
 
             events.push(serde_json::json!({
                 "userId": user_id,
@@ -727,7 +847,8 @@ impl Engine {
                 "qty": qty.to_string(),
                 "markPrice": mark.to_string(),
                 "realizedPnl": realized.to_string(),
-                "payout": payout.to_string()
+                "payout": payout.to_string(),
+                "deficit": deficit.to_string()
             }));
         }
         events
