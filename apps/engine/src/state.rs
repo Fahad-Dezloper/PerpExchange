@@ -19,6 +19,8 @@ pub struct Position {
     pub margin: Decimal,
     pub leverage: u32,
     pub liquidation_price: Decimal,
+    #[serde(default)]
+    pub margin_mode: String,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -70,6 +72,106 @@ impl Engine {
         self.out_db.push(e);
     }
 
+    fn check_cross_liquidations(&mut self, updated_market: &str) -> Vec<serde_json::Value> {
+        let mut candidates: Vec<String> = Vec::new();
+        for (uid, ups) in self.positions.iter() {
+            let has = ups
+                .get(updated_market)
+                .map(|p| p.margin_mode == "cross")
+                .unwrap_or(false);
+            if has {
+                candidates.push(uid.clone());
+            }
+        }
+
+        let mut victims: Vec<String> = Vec::new();
+        for uid in &candidates {
+            let ups = match self.positions.get(uid) {
+                Some(u) => u,
+                None => continue,
+            };
+
+            let available = self.balances.get(uid).map(|b| b.available).unwrap_or(Decimal::ZERO);
+            let mut margin = Decimal::ZERO;
+            let mut upnl = Decimal::ZERO;
+            let mut maint = Decimal::ZERO;
+            for (m, p) in ups.iter() {
+                if p.margin_mode != "cross" {
+                    continue;
+                }
+                let mark = self.mark_of(m).unwrap_or(p.avg_entry_price);
+                let pnl = if p.side == "Long" {
+                    (mark - p.avg_entry_price) * p.qty
+                } else {
+                    (p.avg_entry_price - mark) * p.qty
+                };
+                margin += p.margin;
+                upnl += pnl;
+                maint += p.qty * p.avg_entry_price * Self::mmr();
+            }
+            if available + margin + upnl <= maint {
+                victims.push(uid.clone());
+            }
+        }
+
+                // liquidate all cross positions of each victim
+        let mut events = Vec::new();
+        for uid in victims {
+            let available = self.balances.get(&uid).map(|b| b.available).unwrap_or(Decimal::ZERO);
+            let mut margin = Decimal::ZERO;
+            let mut upnl = Decimal::ZERO;
+            let mut closed: Vec<(String, String, Decimal)> = Vec::new();
+            if let Some(ups) = self.positions.get(&uid) {
+                for (m, p) in ups.iter() {
+                    if p.margin_mode != "cross" {
+                        continue;
+                    }
+                    let mark = self.mark_of(m).unwrap_or(p.avg_entry_price);
+                    let pnl = if p.side == "Long" {
+                        (mark - p.avg_entry_price) * p.qty
+                    } else {
+                        (p.avg_entry_price - mark) * p.qty
+                    };
+                    margin += p.margin;
+                    upnl += pnl;
+                    closed.push((m.clone(), p.side.clone(), p.qty));
+                }
+            }
+
+            // drop all cross positions, keep isolated ones
+            if let Some(ups) = self.positions.get_mut(&uid) {
+                ups.retain(|_, p| p.margin_mode != "cross");
+                if ups.is_empty() {
+                    self.positions.remove(&uid);
+                }
+            }
+
+            let settled = available + margin + upnl;
+            {
+                let bal = self.balances.entry(uid.clone()).or_default();
+                bal.locked -= margin;
+                bal.available = settled.max(Decimal::ZERO);
+            }
+            let deficit = (-settled).max(Decimal::ZERO);
+            if deficit > Decimal::ZERO {
+                self.insurance_fund -= deficit;
+            }
+
+            for (m, side, qty) in &closed {
+                events.push(serde_json::json!({
+                    "userId": uid,
+                    "marketId": m,
+                    "side": side,
+                    "qty": qty.to_string(),
+                    "realizedPnl": upnl.to_string(),
+                    "payout": settled.max(Decimal::ZERO).to_string(),
+                    "crossLiquidation": true
+                }));
+            }
+        }
+        events
+    }
+
     fn emit_pub(&mut self, ch: String, e: serde_json::Value) {
         if self.replaying {
             return;
@@ -106,10 +208,11 @@ impl Engine {
                     p.margin,
                     p.leverage,
                     p.liquidation_price,
+                    p.margin_mode.clone(),
                 )
             });
         let payload = match snap {
-            Some((side, qty, entry, margin, leverage, liq)) => serde_json::json!({
+            Some((side, qty, entry, margin, leverage, liq, mode)) => serde_json::json!({
                 "type": "position",
                 "marketId": market_id,
                 "side": side,
@@ -118,6 +221,7 @@ impl Engine {
                 "margin": margin.to_string(),
                 "leverage": leverage,
                 "liquidationPrice": liq.to_string(),
+                "marginMode": mode
             }),
             None => serde_json::json!({
                 "type": "position_closed",
@@ -214,6 +318,7 @@ impl Engine {
         qty: Decimal,
         margin: Decimal,
         leverage: u32,
+        margin_mode: &str,
     ) {
         let side = if is_long { "Long" } else { "Short" };
         let mut freed = Decimal::ZERO;
@@ -221,9 +326,15 @@ impl Engine {
 
         let ups = self.positions.entry(user_id.to_string()).or_default();
         // snapshot to dodge borrow conflicts
-        let existing = ups
-            .get(market_id)
-            .map(|p| (p.side.clone(), p.qty, p.avg_entry_price, p.margin));
+        let existing = ups.get(market_id).map(|p| {
+            (
+                p.side.clone(),
+                p.qty,
+                p.avg_entry_price,
+                p.margin,
+                p.margin_mode.clone(),
+            )
+        });
 
         match existing {
             // no postion -> open
@@ -238,12 +349,13 @@ impl Engine {
                         margin,
                         leverage,
                         liquidation_price: liq,
+                        margin_mode: margin_mode.to_string(),
                     },
                 );
             }
 
             // same side -> increase, weighted avg entry
-            Some((ex_side, ex_qty, ex_entry, ex_margin)) if ex_side == side => {
+            Some((ex_side, ex_qty, ex_entry, ex_margin, ex_mode)) if ex_side == side => {
                 let new_qty = ex_qty + qty;
                 let new_entry = (ex_qty * ex_entry + qty * price) / new_qty;
                 let new_margin = ex_margin + margin;
@@ -257,12 +369,13 @@ impl Engine {
                         margin: new_margin,
                         leverage,
                         liquidation_price: liq,
+                        margin_mode: ex_mode,
                     },
                 );
             }
 
             // opposite side -> close / flip
-            Some((ex_side, ex_qty, ex_entry, ex_margin)) => {
+            Some((ex_side, ex_qty, ex_entry, ex_margin, ex_mode)) => {
                 let close_qty = qty.min(ex_qty);
 
                 realized = if ex_side == "Long" {
@@ -294,6 +407,7 @@ impl Engine {
                             margin: m,
                             leverage,
                             liquidation_price: liq,
+                            margin_mode: ex_mode,
                         },
                     );
                 } else if leftover > Decimal::ZERO {
@@ -309,6 +423,7 @@ impl Engine {
                             margin: m,
                             leverage,
                             liquidation_price: liq,
+                            margin_mode: margin_mode.to_string(),
                         },
                     );
                 }
@@ -406,7 +521,8 @@ impl Engine {
                             "leverage": p.leverage,
                             "liquidationPrice": p.liquidation_price.to_string(),
                             "unrealizedPnl": upnl.to_string(),
-                            "equity": equity.to_string()
+                            "equity": equity.to_string(),
+                            "marginMode": p.margin_mode
                         })
                     })
                     .collect()
@@ -426,6 +542,7 @@ impl Engine {
         leverage: u32,
         order_type: String,
         client_id: String,
+        margin_mode: String,
     ) -> serde_json::Value {
         if !client_id.is_empty() {
             if let Some(existing) = self.seen_orders.get(&client_id) {
@@ -474,6 +591,7 @@ impl Engine {
                 leverage,
                 margin,
                 is_market,
+                margin_mode.clone(),
             )
         };
 
@@ -488,7 +606,7 @@ impl Engine {
 
             // taker takes the side it ordered; makes takes the oppostite
             self.apply_fill(
-                &user_id, &market_id, is_buy, f.price, f.qty, t_margin, leverage,
+                &user_id, &market_id, is_buy, f.price, f.qty, t_margin, leverage, &margin_mode,
             );
             self.apply_fill(
                 &f.maker_user_id,
@@ -498,6 +616,7 @@ impl Engine {
                 f.qty,
                 m_margin,
                 f.maker_leverage,
+                &f.maker_margin_mode,
             );
         }
 
@@ -784,6 +903,8 @@ impl Engine {
             }),
         );
 
+       
+
         let liquidated = self.check_liquidations(&market_id, p);
         for ev in &liquidated {
             let mut e = ev.clone();
@@ -796,6 +917,23 @@ impl Engine {
                 self.push_positions(&uid, &market_id); // position gone -> position_closed
             }
         }
+
+        let cross = self.check_cross_liquidations(&market_id);
+            for ev in &cross {
+                let mut e = ev.clone();
+                e["type"] = serde_json::json!("liquidation");
+                self.emit_db(e.clone());
+                if let (Some(uid), Some(m)) = (
+                    ev.get("userId").and_then(|v| v.as_str()),
+                    ev.get("marketId").and_then(|v| v.as_str()),
+                ) {
+                    let uid = uid.to_string();
+                    let m = m.to_string();
+                    self.emit_pub(format!("user.{uid}"), e);
+                    self.push_balance(&uid);
+                    self.push_positions(&uid, &m);
+                }
+            }
 
         if self.insurance_fund < Decimal::ZERO {
             let adl = self.run_adl(&market_id, p);
@@ -818,6 +956,9 @@ impl Engine {
         let mut victims: Vec<(String, String, Decimal, Decimal, Decimal)> = Vec::new();
         for (user_id, ups) in self.positions.iter() {
             if let Some(p) = ups.get(market_id) {
+                if p.margin_mode == "cross" {
+                    continue; // cross positions liquidate at the account level, not here
+                }
                 let upnl = if p.side == "Long" {
                     (mark - p.avg_entry_price) * p.qty
                 } else {
@@ -940,5 +1081,97 @@ impl Engine {
             .flat_map(|b| b.open_orders_for(user_id))
             .collect();
         serde_json::json!({ "ok": true, "orders": orders })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // maker rests, taker crosses -> both end up with a position
+    fn cross_open(
+        e: &mut Engine,
+        m: &str,
+        oid_maker: &str,
+        oid_taker: &str,
+        maker: &str,
+        taker: &str,
+        taker_long: bool,
+        price: f64,
+        qty: &str,
+        lev: u32,
+        taker_mode: &str,
+        maker_mode: &str,
+    ) {
+        let (ms, ts) = if taker_long {
+            ("short", "long")
+        } else {
+            ("long", "short")
+        };
+        e.create_order(
+            oid_maker.into(), maker.into(), m.into(), ms.into(), price, qty.into(),
+            lev, "limit".into(), "".into(), maker_mode.into(),
+        );
+        e.create_order(
+            oid_taker.into(), taker.into(), m.into(), ts.into(), price, qty.into(),
+            lev, "limit".into(), "".into(), taker_mode.into(),
+        );
+    }
+
+    fn has_pos(e: &Engine, user: &str, market: &str) -> bool {
+        e.positions
+            .get(user)
+            .map(|ps| ps.contains_key(market))
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn isolated_liquidation_closes_only_the_losing_position() {
+        let mut e = Engine::new();
+        e.create_market("M".into());
+        e.onramp("A".into(), "1000".into());
+        e.onramp("B".into(), "1000".into());
+
+        // A long 1@100 x10 isolated ; B short is the maker
+        cross_open(&mut e, "M", "b1", "a1", "B", "A", true, 100.0, "1", 10, "isolated", "isolated");
+        assert!(has_pos(&e, "A", "M"), "A should have opened a long");
+        assert!(has_pos(&e, "B", "M"), "B should have opened a short");
+
+        // mark down to 90 -> A long liquidates (equity 0 <= maint 0.5), B short survives
+        e.mark_price_update("M".into(), "90".into());
+        assert!(!has_pos(&e, "A", "M"), "A long must be liquidated");
+        assert!(has_pos(&e, "B", "M"), "B short must survive");
+    }
+
+    #[test]
+    fn cross_liquidation_spares_isolated_position() {
+        let mut e = Engine::new();
+        e.create_market("M1".into());
+        e.create_market("M2".into());
+        e.onramp("A".into(), "25".into()); // just enough for two 10-margin positions + fees
+        e.onramp("B".into(), "1000".into());
+        e.onramp("C".into(), "1000".into());
+
+        // A: cross long M1 (vs B) AND isolated long M2 (vs C)
+        cross_open(&mut e, "M1", "b1", "a1", "B", "A", true, 100.0, "1", 10, "cross", "isolated");
+        cross_open(&mut e, "M2", "c1", "a2", "C", "A", true, 100.0, "1", 10, "isolated", "isolated");
+        assert!(has_pos(&e, "A", "M1"), "A cross M1 should open");
+        assert!(has_pos(&e, "A", "M2"), "A isolated M2 should open");
+
+        // push M1 down -> A's cross account underwater -> cross liq closes M1 ONLY
+        e.mark_price_update("M1".into(), "85".into());
+        assert!(!has_pos(&e, "A", "M1"), "cross M1 must be liquidated");
+        assert!(has_pos(&e, "A", "M2"), "isolated M2 must be untouched");
+    }
+
+    #[test]
+    fn fees_accrue_to_insurance_fund() {
+        let mut e = Engine::new();
+        e.create_market("M".into());
+        e.onramp("A".into(), "1000".into());
+        e.onramp("B".into(), "1000".into());
+        cross_open(&mut e, "M", "b1", "a1", "B", "A", true, 100.0, "1", 10, "isolated", "isolated");
+        // taker 0.05% + maker 0.02% of notional 100 = 0.05 + 0.02 = 0.07
+        assert!(e.insurance_fund > Decimal::ZERO, "fees should fill the insurance fund");
     }
 }

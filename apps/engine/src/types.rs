@@ -22,6 +22,8 @@ pub enum ToEngine {
         side: String,
         #[serde(rename = "type")]
         order_type: String,
+        #[serde(rename = "marginMode", default)]
+        margin_mode: String,
         price: f64,
         qty: String,
         slippage: String,

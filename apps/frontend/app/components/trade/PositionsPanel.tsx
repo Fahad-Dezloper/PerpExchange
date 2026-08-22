@@ -92,6 +92,7 @@ export default function PositionsPanel({
         leverage: String(p.leverage),
         slippage: "0.5",
         clientId: crypto.randomUUID(),
+        marginMode: p.marginMode ?? "isolated",
       });
       notify.success("Position closed", p.symbol);
       await Promise.all([

@@ -61,6 +61,7 @@ const PositionProvider = ({ children }: { children: React.ReactNode }) => {
         liq: +m.liquidationPrice,
         pnl: 0,
         pnlPct: 0,
+        marginMode: m.marginMode ?? "isolated",
       };
       setRaw((prev) => [...prev.filter((p) => p.symbol !== m.marketId), pos]);
     } else if (

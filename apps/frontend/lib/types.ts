@@ -20,6 +20,7 @@ export type Position = {
   liq: number;
   pnl: number;
   pnlPct: number;
+  marginMode?: "cross" | "isolated";
 };
 
 export type Market = {
@@ -57,6 +58,7 @@ export type PlaceOrder = {
   leverage: string;
   slippage: string;
   clientId: string;
+  marginMode: "cross" | "isolated";
 };
 
 export type PlaceOrderResult = { orderId: string; status: OrderStatus };
@@ -83,6 +85,7 @@ export type WirePosition = {
   liquidationPrice: string;
   unrealizedPnl?: string;
   equity?: string;
+  marginMode?: "cross" | "isolated";
 };
 
 export type WireOrder = {
@@ -157,6 +160,7 @@ export function mapPositon(
     liq: +p.liquidationPrice,
     pnl,
     pnlPct: margin > 0 ? (pnl / margin) * 100 : 0,
+    marginMode: p.marginMode ?? "isolated",
   };
 }
 

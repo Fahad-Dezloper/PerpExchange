@@ -10,6 +10,8 @@ pub struct RestingOrder {
     pub filled: Decimal,
     pub leverage: u32,
     pub margin: Decimal,
+    #[serde(default)]
+    pub margin_mode: String,
 }
 
 impl RestingOrder {
@@ -27,6 +29,7 @@ pub struct Fill {
     pub maker_user_id: String,
     pub taker_user_id: String,
     pub maker_leverage: u32,
+    pub maker_margin_mode: String,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -57,6 +60,7 @@ impl Orderbook {
         leverage: u32,
         margin: Decimal,
         ioc: bool,
+        margin_mode: String,
     ) -> (Vec<Fill>, Decimal) {
         let mut fills = Vec::new();
         let mut remaining = qty;
@@ -113,6 +117,7 @@ impl Orderbook {
                     maker_user_id: maker.user_id.clone(),
                     taker_user_id: user_id.clone(),
                     maker_leverage: maker.leverage,
+                    maker_margin_mode: maker.margin_mode.clone(),
                 });
                 self.last_traded_price = best_price;
 
@@ -127,7 +132,7 @@ impl Orderbook {
         }
 
         // rest remainder on own side (IOC orders never rest)
-        if remaining > Decimal::ZERO {
+        if remaining > Decimal::ZERO && !ioc {
             let rest_margin = margin * (remaining / qty);
             let side = if is_buy {
                 &mut self.bids
@@ -141,6 +146,7 @@ impl Orderbook {
                 filled: Decimal::ZERO,
                 leverage,
                 margin: rest_margin,
+                margin_mode,
             });
         }
 

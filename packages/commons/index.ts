@@ -17,6 +17,7 @@ export type ToEngine =
       clientId: string;
       slippage: string;
       leverage: string;
+      marginMode: "cross" | "isolated";
     }
   | {
       messageType: "cancel_order";

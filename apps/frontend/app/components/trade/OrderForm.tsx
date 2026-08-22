@@ -42,6 +42,9 @@ export default function OrderForm({
   const [slippage] = useState("0.5");
   const router = useRouter();
   const { token } = useAuth();
+  const [marginMode, setMarginMode] = useState<"cross" | "isolated">(
+    "isolated",
+  );
 
   const px = type === "limit" ? Number(limitPrice) || price : price;
   const n = Number(val) || 0;
@@ -89,6 +92,7 @@ export default function OrderForm({
         qty: size.toString(),
         leverage: String(leverage),
         slippage: String(slippage),
+        marginMode,
         clientId: crypto.randomUUID(),
       });
       setVal("");
@@ -258,6 +262,18 @@ export default function OrderForm({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 text-[13px]">
+        {(["isolated", "cross"] as const).map((mm) => (
+          <button
+            key={mm}
+            onClick={() => setMarginMode(mm)}
+            className={`rounded-lg py-2 capitalize transition ${marginMode === mm ? "bg-panel text-fg shadow-sm" : "text-muted hover:text-fg"}`}
+          >
+            {mm}
+          </button>
+        ))}
       </div>
       {/* summary */}
       <div className="space-y-1.5 px-1 text-[12px]">
