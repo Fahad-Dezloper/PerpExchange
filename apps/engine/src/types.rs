@@ -13,6 +13,8 @@ pub enum ToEngine {
     CreateOrder {
         #[serde(rename = "orderId")]
         order_id: String,
+        #[serde(rename = "clientId", default)]
+        client_id: String,
         #[serde(rename = "userId")]
         user_id: String,
         #[serde(rename = "marketId")]

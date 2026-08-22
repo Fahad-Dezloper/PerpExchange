@@ -142,6 +142,7 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         ToEngine::CreateMarket { market_id } => engine.create_market(market_id),
         ToEngine::CreateOrder {
             order_id,
+            client_id,
             user_id,
             market_id,
             side,
@@ -152,7 +153,7 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
             ..
         } => {
             let lev = leverage.parse::<u32>().unwrap_or(1);
-            engine.create_order(order_id, user_id, market_id, side, price, qty, lev, order_type)
+            engine.create_order(order_id, user_id, market_id, side, price, qty, lev, order_type, client_id)
         }
         ToEngine::CancelOrder {
             order_id,

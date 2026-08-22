@@ -42,6 +42,33 @@ function toCoinbaseProduct(slug: string) {
   return `${slug.split("-")[0]?.toUpperCase()}-USD`;
 }
 
+async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...opts,
+    headers: {
+      "content-type": "application/json",
+      ...(bearer() ? { authorization: `Bearer ${bearer()}` } : {}),
+      ...opts.headers,
+    },
+  });
+  if (res.status === 401 || res.status === 403) {
+    onUnauthorized?.();
+    const err = new Error("unauthorized") as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(
+      (await res.text()) || `HTTP ${res.status}`,
+    ) as Error & {
+      status?: number;
+    };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<T>;
+}
+
 /// User
 app.post("/api/v1/onramp", authMiddleware, async (req, res) => {
   const userId = req.userId!;
@@ -131,7 +158,8 @@ app.post("/api/v1/market", async (req, res) => {
 
 app.post("/api/v1/order", authMiddleware, async (req, res) => {
   const userId = req.userId!;
-  const { marketId, side, type, price, qty, leverage, slippage } = req.body;
+  const { marketId, side, type, price, qty, leverage, slippage, clientId } =
+    req.body;
 
   // validate
   if (!marketId || !side || !type || !qty) {
@@ -163,6 +191,7 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
     const result = await loopback({
       messageType: "create_order",
       orderId,
+      clientId: clientId ?? orderId,
       userId,
       marketId,
       side,
@@ -173,7 +202,7 @@ app.post("/api/v1/order", authMiddleware, async (req, res) => {
       slippage: slippage,
       leverage: leverage,
     });
-    res.status(200).json({ orderId: orderId, ...result });
+    res.status(200).json({ orderId, ...result });
   } catch (e) {
     res.status(504).json({ message: "Engine Timeout" });
   }

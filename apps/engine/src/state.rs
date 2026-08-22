@@ -28,6 +28,8 @@ pub struct Engine {
     pub positions: HashMap<String, HashMap<String, Position>>,
     #[serde(default)]
     pub insurance_fund: Decimal,
+    #[serde(default)]
+    pub seen_orders: HashMap<String, String>, // clientId -> orderId (idempotency)
     #[serde(skip)]
     pub out_db: Vec<serde_json::Value>, // durable events -> to-db
     #[serde(skip)]
@@ -423,7 +425,19 @@ impl Engine {
         qty: String,
         leverage: u32,
         order_type: String,
+        client_id: String,
     ) -> serde_json::Value {
+        if !client_id.is_empty() {
+            if let Some(existing) = self.seen_orders.get(&client_id) {
+                return serde_json::json!({
+                    "ok": true,
+                    "orderId": existing,
+                    "status": "Duplicate",
+                    "duplicate": true
+                });
+            }
+        }
+
         let qty = match Decimal::from_str(&qty) {
             Ok(q) if q > Decimal::ZERO => q,
             _ => return serde_json::json!({ "ok": false, "error": "bad qty" }),
@@ -640,6 +654,10 @@ impl Engine {
                     "locked": locked.to_string()
                 }))
             }
+        }
+
+        if !client_id.is_empty() {
+            self.seen_orders.insert(client_id, order_id.clone());
         }
 
         serde_json::json!({

@@ -1,12 +1,4 @@
-import {
-  MARKETS,
-  POSITIONS,
-  BALANCE,
-  makeOrderBook,
-  type Market,
-  type Position,
-  type OpenOrder,
-} from "./mock";
+import { type Market, type Position, type OpenOrder } from "./mock";
 import {
   BalanceDto,
   Candle,
@@ -50,9 +42,17 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   });
   if (res.status === 401 || res.status === 403) {
     onUnauthorized?.();
-    throw new Error("unauthorized");
+    const err = new Error("unauthorized") as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
-  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(
+      (await res.text()) || `HTTP ${res.status}`,
+    ) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -86,8 +86,30 @@ export async function getDepth(marketId: string): Promise<Depth> {
   });
 }
 
+function isRetryable(e: unknown): boolean {
+  const status = (e as { status?: number })?.status;
+  if (status == null) return true; // fetch threw -> network/timeout
+  return status >= 500;
+}
+
 export async function placeOrder(o: PlaceOrder): Promise<PlaceOrderResult> {
-  return req("api/v1/order", { method: "POST", body: JSON.stringify(o) });
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      // same o.clientId on every attempt -> engine returns the original on a dupe
+      return await req<PlaceOrderResult>("api/v1/order", {
+        method: "POST",
+        body: JSON.stringify(o),
+      });
+    } catch (e) {
+      lastErr = e;
+      if (!isRetryable(e)) throw e; // definitive rejection -> surface immediately
+      if (attempt < MAX_ATTEMPTS - 1) await wait(200 * (attempt + 1)); // 200ms, 400ms
+    }
+  }
+  throw lastErr;
 }
 
 export async function cancelOrder(

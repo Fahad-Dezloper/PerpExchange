@@ -56,6 +56,7 @@ export type PlaceOrder = {
   qty: string;
   leverage: string;
   slippage: string;
+  clientId: string;
 };
 
 export type PlaceOrderResult = { orderId: string; status: OrderStatus };

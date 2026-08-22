@@ -14,6 +14,7 @@ export type ToEngine =
       userId: string;
       equity: string;
       orderId: string;
+      clientId: string;
       slippage: string;
       leverage: string;
     }

@@ -89,6 +89,7 @@ export default function OrderForm({
         qty: size.toString(),
         leverage: String(leverage),
         slippage: String(slippage),
+        clientId: crypto.randomUUID(),
       });
       setVal("");
       notify.success(
