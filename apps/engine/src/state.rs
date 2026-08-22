@@ -1,6 +1,6 @@
 use crate::orderbook::Orderbook;
-use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -91,7 +91,11 @@ impl Engine {
                 None => continue,
             };
 
-            let available = self.balances.get(uid).map(|b| b.available).unwrap_or(Decimal::ZERO);
+            let available = self
+                .balances
+                .get(uid)
+                .map(|b| b.available)
+                .unwrap_or(Decimal::ZERO);
             let mut margin = Decimal::ZERO;
             let mut upnl = Decimal::ZERO;
             let mut maint = Decimal::ZERO;
@@ -114,10 +118,14 @@ impl Engine {
             }
         }
 
-                // liquidate all cross positions of each victim
+        // liquidate all cross positions of each victim
         let mut events = Vec::new();
         for uid in victims {
-            let available = self.balances.get(&uid).map(|b| b.available).unwrap_or(Decimal::ZERO);
+            let available = self
+                .balances
+                .get(&uid)
+                .map(|b| b.available)
+                .unwrap_or(Decimal::ZERO);
             let mut margin = Decimal::ZERO;
             let mut upnl = Decimal::ZERO;
             let mut closed: Vec<(String, String, Decimal)> = Vec::new();
@@ -606,7 +614,14 @@ impl Engine {
 
             // taker takes the side it ordered; makes takes the oppostite
             self.apply_fill(
-                &user_id, &market_id, is_buy, f.price, f.qty, t_margin, leverage, &margin_mode,
+                &user_id,
+                &market_id,
+                is_buy,
+                f.price,
+                f.qty,
+                t_margin,
+                leverage,
+                &margin_mode,
             );
             self.apply_fill(
                 &f.maker_user_id,
@@ -620,8 +635,9 @@ impl Engine {
             );
         }
 
-        // taker locked margin at its limit price; fills may be cheaper -> refund the diffrence
-        let rest_margin = if qty.is_zero() {
+        // taker locked margin at its limit price; fills may be cheaper -> refund the diffrence.
+        // market/IOC orders never rest, so nothing stays reserved for the remainder.
+        let rest_margin = if is_market || qty.is_zero() {
             Decimal::ZERO
         } else {
             margin * remaining / qty
@@ -903,8 +919,6 @@ impl Engine {
             }),
         );
 
-       
-
         let liquidated = self.check_liquidations(&market_id, p);
         for ev in &liquidated {
             let mut e = ev.clone();
@@ -919,21 +933,21 @@ impl Engine {
         }
 
         let cross = self.check_cross_liquidations(&market_id);
-            for ev in &cross {
-                let mut e = ev.clone();
-                e["type"] = serde_json::json!("liquidation");
-                self.emit_db(e.clone());
-                if let (Some(uid), Some(m)) = (
-                    ev.get("userId").and_then(|v| v.as_str()),
-                    ev.get("marketId").and_then(|v| v.as_str()),
-                ) {
-                    let uid = uid.to_string();
-                    let m = m.to_string();
-                    self.emit_pub(format!("user.{uid}"), e);
-                    self.push_balance(&uid);
-                    self.push_positions(&uid, &m);
-                }
+        for ev in &cross {
+            let mut e = ev.clone();
+            e["type"] = serde_json::json!("liquidation");
+            self.emit_db(e.clone());
+            if let (Some(uid), Some(m)) = (
+                ev.get("userId").and_then(|v| v.as_str()),
+                ev.get("marketId").and_then(|v| v.as_str()),
+            ) {
+                let uid = uid.to_string();
+                let m = m.to_string();
+                self.emit_pub(format!("user.{uid}"), e);
+                self.push_balance(&uid);
+                self.push_positions(&uid, &m);
             }
+        }
 
         if self.insurance_fund < Decimal::ZERO {
             let adl = self.run_adl(&market_id, p);
@@ -1085,93 +1099,5 @@ impl Engine {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // maker rests, taker crosses -> both end up with a position
-    fn cross_open(
-        e: &mut Engine,
-        m: &str,
-        oid_maker: &str,
-        oid_taker: &str,
-        maker: &str,
-        taker: &str,
-        taker_long: bool,
-        price: f64,
-        qty: &str,
-        lev: u32,
-        taker_mode: &str,
-        maker_mode: &str,
-    ) {
-        let (ms, ts) = if taker_long {
-            ("short", "long")
-        } else {
-            ("long", "short")
-        };
-        e.create_order(
-            oid_maker.into(), maker.into(), m.into(), ms.into(), price, qty.into(),
-            lev, "limit".into(), "".into(), maker_mode.into(),
-        );
-        e.create_order(
-            oid_taker.into(), taker.into(), m.into(), ts.into(), price, qty.into(),
-            lev, "limit".into(), "".into(), taker_mode.into(),
-        );
-    }
-
-    fn has_pos(e: &Engine, user: &str, market: &str) -> bool {
-        e.positions
-            .get(user)
-            .map(|ps| ps.contains_key(market))
-            .unwrap_or(false)
-    }
-
-    #[test]
-    fn isolated_liquidation_closes_only_the_losing_position() {
-        let mut e = Engine::new();
-        e.create_market("M".into());
-        e.onramp("A".into(), "1000".into());
-        e.onramp("B".into(), "1000".into());
-
-        // A long 1@100 x10 isolated ; B short is the maker
-        cross_open(&mut e, "M", "b1", "a1", "B", "A", true, 100.0, "1", 10, "isolated", "isolated");
-        assert!(has_pos(&e, "A", "M"), "A should have opened a long");
-        assert!(has_pos(&e, "B", "M"), "B should have opened a short");
-
-        // mark down to 90 -> A long liquidates (equity 0 <= maint 0.5), B short survives
-        e.mark_price_update("M".into(), "90".into());
-        assert!(!has_pos(&e, "A", "M"), "A long must be liquidated");
-        assert!(has_pos(&e, "B", "M"), "B short must survive");
-    }
-
-    #[test]
-    fn cross_liquidation_spares_isolated_position() {
-        let mut e = Engine::new();
-        e.create_market("M1".into());
-        e.create_market("M2".into());
-        e.onramp("A".into(), "25".into()); // just enough for two 10-margin positions + fees
-        e.onramp("B".into(), "1000".into());
-        e.onramp("C".into(), "1000".into());
-
-        // A: cross long M1 (vs B) AND isolated long M2 (vs C)
-        cross_open(&mut e, "M1", "b1", "a1", "B", "A", true, 100.0, "1", 10, "cross", "isolated");
-        cross_open(&mut e, "M2", "c1", "a2", "C", "A", true, 100.0, "1", 10, "isolated", "isolated");
-        assert!(has_pos(&e, "A", "M1"), "A cross M1 should open");
-        assert!(has_pos(&e, "A", "M2"), "A isolated M2 should open");
-
-        // push M1 down -> A's cross account underwater -> cross liq closes M1 ONLY
-        e.mark_price_update("M1".into(), "85".into());
-        assert!(!has_pos(&e, "A", "M1"), "cross M1 must be liquidated");
-        assert!(has_pos(&e, "A", "M2"), "isolated M2 must be untouched");
-    }
-
-    #[test]
-    fn fees_accrue_to_insurance_fund() {
-        let mut e = Engine::new();
-        e.create_market("M".into());
-        e.onramp("A".into(), "1000".into());
-        e.onramp("B".into(), "1000".into());
-        cross_open(&mut e, "M", "b1", "a1", "B", "A", true, 100.0, "1", 10, "isolated", "isolated");
-        // taker 0.05% + maker 0.02% of notional 100 = 0.05 + 0.02 = 0.07
-        assert!(e.insurance_fund > Decimal::ZERO, "fees should fill the insurance fund");
-    }
-}
+#[path = "state_tests.rs"]
+mod tests;

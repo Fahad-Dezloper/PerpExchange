@@ -3,8 +3,8 @@ mod snapshot;
 mod state;
 mod types;
 
-use redis::streams::{StreamRangeReply, StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
+use redis::streams::{StreamRangeReply, StreamReadOptions, StreamReadReply};
 use state::Engine;
 use std::collections::HashMap;
 use types::ToEngine;
@@ -90,7 +90,7 @@ async fn main() -> redis::RedisResult<()> {
                 let payload = fields.get("payload").cloned().unwrap_or_default();
 
                 let result = match serde_json::from_str::<ToEngine>(&payload) {
-                    Ok(msg) => handle(&mut  engine, msg),
+                    Ok(msg) => handle(&mut engine, msg),
                     Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
                 };
                 // println!("here result {:?}", result);
@@ -155,7 +155,15 @@ fn handle(engine: &mut Engine, msg: ToEngine) -> serde_json::Value {
         } => {
             let lev = leverage.parse::<u32>().unwrap_or(1);
             engine.create_order(
-                order_id, user_id, market_id, side, price, qty, lev, order_type, client_id,
+                order_id,
+                user_id,
+                market_id,
+                side,
+                price,
+                qty,
+                lev,
+                order_type,
+                client_id,
                 margin_mode,
             )
         }
